@@ -1,0 +1,32 @@
+[
+  {
+    "id": 1,
+    "status": "todo",
+    "goal": "Bootstrap the repository structure.",
+    "notes": "Create folders /backend, /frontend, /workspace, /plans. Initialize tasks.json, README.md, .gitignore. Add package managers etc."
+  },
+  {
+    "id": 2,
+    "status": "todo",
+    "goal": "Implement core backend APIs.",
+    "notes": "Define FastAPI routes for sessions and messages, integrate task queue persistence, council endpoints, tool actions, worker logic."
+  },
+  {
+    "id": 3,
+    "status": "todo",
+    "goal": "Integrate agent planning and tools.",
+    "notes": "Wire ChatGPT Agent Mode to backend, call Claude planner, implement file operations and commands, diff summarization and verification."
+  },
+  {
+    "id": 4,
+    "status": "todo",
+    "goal": "Build the frontend UI.",
+    "notes": "Create left sidebar, chat panel, right panel with plan/log view; implement file explorer and diff viewer; ensure mobile responsiveness and dark/light mode."
+  },
+  {
+    "id": 5,
+    "status": "todo",
+    "goal": "Develop the autonomy engine.",
+    "notes": "Implement continuous scheduled runs, task resume logic, checkpoints, health checks, and safe loop execution."
+  }
+]
