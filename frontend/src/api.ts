@@ -56,3 +56,22 @@ export async function getTaskLogs(sessionId: string, taskId: number): Promise<an
   );
   return data;
 }
+
+// ---------------------------------------------------------------------------
+// Workspace API helpers
+//
+// These functions call the backend endpoints to list files/directories
+// within the workspace and to read file contents. They are useful for
+// implementing a file explorer in the frontend.
+
+export async function listWorkspace(path: string = ""): Promise<any[]> {
+  const { data } = await axios.get(`${API_BASE}/workspace/list`, {
+    params: { path },
+  });
+  return data.entries;
+}
+
+export async function readWorkspaceFile(filePath: string): Promise<string> {
+  const { data } = await axios.get(`${API_BASE}/workspace/file/${filePath}`);
+  return data.content;
+}
