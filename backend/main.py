@@ -1,251 +1,288 @@
-"""
-FastAPI backend for the Super Builder application.
+import os
+import uuid
+from typing import Any, Dict, List, Optional
 
-This module defines the REST API used by the front-end and tooling to
-create sessions, manage tasks and execute them via the autonomous
-SuperBuilderAgent. The API persists tasks to a JSON file on disk
-to survive restarts. Additional endpoints may be added as the system
-grows (e.g. for logging, messaging or file management).
-
-The current implementation intentionally keeps things simple:
-
-* Tasks are stored in a single JSON file via ``load_tasks`` and
-  ``save_tasks`` helpers.
-* Each call to ``/session/{session_id}/tasks/{task_id}/run``
-  executes one step of the task via the agent to ensure safe,
-  incremental progress.
-* A dedicated endpoint exists to retrieve the plan for a task.
-
-Future iterations should expand on this foundation with proper task
-queues, authentication, streaming of agent output and comprehensive
-error handling.
-"""
-
-from __future__ import annotations
-
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from uuid import uuid4
-from typing import List, Dict, Any, Optional
 
-from .models import CreateTaskRequest, Task, MessageRequest, MessageResponse
-from .storage import load_tasks, save_tasks
-from .agents import get_agent
-from .utils import file_ops
+from backend.models import (
+    CreateTaskRequest,
+    Task,
+    MessageRequest,
+    MessageResponse,
+)
+from backend.storage import load_tasks, save_tasks, upsert_task
+from backend.agents.super_builder import get_agent as get_super_builder_agent
+from backend.agents.claude_agent import get_agent as get_claude_agent
+from backend.utils.file_ops import list_dir, read_file, WORKSPACE_DIR
+
+APP_VERSION = "0.2.0"
+
+# --------------------------------------------------------------------------- #
+# Agent selection
+# --------------------------------------------------------------------------- #
+
+AGENT_MODE = os.getenv("BUILDER_AGENT", "super").lower().strip()
 
 
-app = FastAPI(title="Super Builder Backend")
+def _get_agent():
+    """
+    Select which agent implementation to use based on BUILDER_AGENT env var.
 
-# Allow all origins for simplicity (adjust in production)
+    BUILDER_AGENT=super   -> backend.agents.super_builder
+    BUILDER_AGENT=claude  -> backend.agents.claude_agent
+    """
+    if AGENT_MODE == "claude":
+        return get_claude_agent()
+    # default
+    return get_super_builder_agent()
+
+
+# --------------------------------------------------------------------------- #
+# FastAPI app
+# --------------------------------------------------------------------------- #
+
+app = FastAPI(
+    title="Super Builder Backend",
+    version=APP_VERSION,
+    description=(
+        "Task + plan + workspace backend for the Super Builder system. "
+        "Supports multiple agent implementations (SuperBuilder / Claude)."
+    ),
+)
+
+# Allow frontend dev server + Railway etc.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # tighten this in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# In-memory store for chat sessions
-sessions_store: Dict[str, List[Dict[str, str]]] = {}
+# In-memory store for simple chat per session
+SESSIONS_STORE: Dict[str, List[Dict[str, str]]] = {}
 
 
-@app.get("/health", summary="Health check")
-async def health() -> Dict[str, str]:
-    """Return a simple health status."""
-    return {"status": "ok"}
+# --------------------------------------------------------------------------- #
+# Helpers
+# --------------------------------------------------------------------------- #
 
 
-@app.post("/session", response_model=Dict[str, str])
-async def create_session() -> Dict[str, str]:
-    """Create a new chat session and return its identifier."""
-    session_id = str(uuid4())
-    sessions_store[session_id] = []
+def _ensure_session(session_id: str) -> None:
+    if session_id not in SESSIONS_STORE:
+        SESSIONS_STORE[session_id] = []
+
+
+def _find_task(task_id: int) -> Task:
+    tasks = load_tasks()
+    for t in tasks:
+        if t.id == task_id:
+            return t
+    raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
+
+
+def _update_and_save_task(updated_task: Task) -> Task:
+    upsert_task(updated_task)
+    return updated_task
+
+
+# --------------------------------------------------------------------------- #
+# Health
+# --------------------------------------------------------------------------- #
+
+
+@app.get("/health")
+def health() -> Dict[str, Any]:
+    """
+    Simple health check including current agent mode and workspace path.
+    """
+    return {
+        "status": "ok",
+        "version": APP_VERSION,
+        "agent": AGENT_MODE,
+        "workspace": str(WORKSPACE_DIR),
+    }
+
+
+# --------------------------------------------------------------------------- #
+# Sessions
+# --------------------------------------------------------------------------- #
+
+
+@app.post("/session")
+def create_session() -> Dict[str, str]:
+    """
+    Create a new chat session and return its identifier.
+    """
+    session_id = str(uuid.uuid4())
+    SESSIONS_STORE[session_id] = []
     return {"session_id": session_id}
 
 
 @app.get("/session/{session_id}")
-async def get_session_state(session_id: str) -> Dict[str, Any]:
-    """Return the current list of tasks for the given session."""
-    tasks: List[Task] = load_tasks()
-    return {"tasks": [task.dict(by_alias=True) for task in tasks]}
+def get_session_state(session_id: str) -> Dict[str, Any]:
+    """
+    Return current state for a session.
+
+    Right now this just returns all tasks plus any stored messages.
+    In the future you can scope tasks to the session.
+    """
+    _ensure_session(session_id)
+    tasks = load_tasks()
+    messages = SESSIONS_STORE.get(session_id, [])
+    return {
+        "session_id": session_id,
+        "tasks": [t.dict(by_alias=True) for t in tasks],
+        "messages": messages,
+    }
+
+
+# --------------------------------------------------------------------------- #
+# Tasks
+# --------------------------------------------------------------------------- #
 
 
 @app.post("/session/{session_id}/tasks", response_model=Task)
-async def create_task(session_id: str, req: CreateTaskRequest) -> Task:
-    """Create a new task and persist it to disk."""
-    tasks: List[Task] = load_tasks()
-    new_id = max((int(t.id) for t in tasks), default=0) + 1
-    new_task = Task(
-        id=new_id,
-        type=req.type,
-        goal=req.goal,
-        project_id=req.project_id,
+def create_task(session_id: str, request: CreateTaskRequest) -> Task:
+    """
+    Create a new task associated with this session.
+
+    For now tasks are global; the session_id is recorded in logs only.
+    """
+    _ensure_session(session_id)
+    tasks = load_tasks()
+    next_id = max((t.id for t in tasks), default=0) + 1
+
+    task = Task(
+        id=next_id,
+        type=request.type,
+        goal=request.goal,
+        project_id=request.project_id,
         status="queued",
         plan=[],
-        current_step=0,
+        logs=[f"[session:{session_id}] Task created."],
     )
-    tasks.append(new_task)
+    tasks.append(task)
     save_tasks(tasks)
-    return new_task
-
-
-@app.post("/session/{session_id}/tasks/{task_id}/run")
-async def run_task(session_id: str, task_id: int) -> Dict[str, Any]:
-    """Run one step of the specified task via the agent."""
-    tasks: List[Task] = load_tasks()
-    task_obj: Optional[Task] = next((t for t in tasks if int(t.id) == task_id), None)
-    if task_obj is None:
-        raise HTTPException(status_code=404, detail="Task not found")
-
-    agent = get_agent()
-    task_payload = task_obj.dict(by_alias=True)
-    updated_payload = agent.execute_task(task_payload)
-    updated_task = Task(**updated_payload)
-
-    for idx, existing in enumerate(tasks):
-        if int(existing.id) == task_id:
-            tasks[idx] = updated_task
-            break
-    save_tasks(tasks)
-    return updated_task.dict(by_alias=True)
-
-
-@app.post("/session/{session_id}/tasks/{task_id}/run_all")
-async def run_task_all(session_id: str, task_id: int) -> Dict[str, Any]:
-    """Run all remaining steps of the specified task until completion."""
-    tasks: List[Task] = load_tasks()
-    task_obj: Optional[Task] = next((t for t in tasks if int(t.id) == task_id), None)
-    if task_obj is None:
-        raise HTTPException(status_code=404, detail="Task not found")
-
-    agent = get_agent()
-    task_payload = task_obj.dict(by_alias=True)
-    while task_payload.get("status") != "completed":
-        task_payload = agent.execute_task(task_payload)
-
-    updated_task = Task(**task_payload)
-    for idx, existing in enumerate(tasks):
-        if int(existing.id) == task_id:
-            tasks[idx] = updated_task
-            break
-    save_tasks(tasks)
-    return updated_task.dict(by_alias=True)
+    return task
 
 
 @app.get("/session/{session_id}/tasks/{task_id}", response_model=Task)
-async def get_task(session_id: str, task_id: int) -> Task:
-    """Retrieve a task by its unique ID."""
-    tasks: List[Task] = load_tasks()
-    task_obj = next((t for t in tasks if int(t.id) == task_id), None)
-    if task_obj is None:
-        raise HTTPException(status_code=404, detail="Task not found")
-    return task_obj
+def get_task(session_id: str, task_id: int) -> Task:
+    _ensure_session(session_id)
+    return _find_task(task_id)
+
+
+@app.post("/session/{session_id}/tasks/{task_id}/run", response_model=Task)
+def run_task_once(session_id: str, task_id: int) -> Task:
+    """
+    Run a single planning/execution step on the task using the selected agent.
+    """
+    _ensure_session(session_id)
+    task = _find_task(task_id)
+    agent = _get_agent()
+
+    task_payload = task.dict(by_alias=True)
+    updated_payload = agent.execute_task(task_payload)  # type: ignore[arg-type]
+    updated_task = Task(**updated_payload)
+    return _update_and_save_task(updated_task)
+
+
+@app.post("/session/{session_id}/tasks/{task_id}/run_all", response_model=Task)
+def run_task_all(session_id: str, task_id: int) -> Task:
+    """
+    Run the task until completion, calling the agent in a loop.
+    """
+    _ensure_session(session_id)
+    task = _find_task(task_id)
+    agent = _get_agent()
+
+    task_payload = task.dict(by_alias=True)
+    while task_payload.get("status") not in ("completed", "failed"):
+        task_payload = agent.execute_task(task_payload)  # type: ignore[arg-type]
+    updated_task = Task(**task_payload)
+    return _update_and_save_task(updated_task)
 
 
 @app.get("/session/{session_id}/tasks/{task_id}/plan")
-async def get_task_plan(session_id: str, task_id: int) -> Dict[str, Any]:
-    """Return only the execution plan for a given task."""
-    tasks: List[Task] = load_tasks()
-    task_obj = next((t for t in tasks if int(t.id) == task_id), None)
-    if task_obj is None:
-        raise HTTPException(status_code=404, detail="Task not found")
-    plan_data = [step.dict() for step in task_obj.plan]
-    return {"plan": plan_data}
-
-
-@app.post("/session/{session_id}/message", response_model=MessageResponse)
-async def send_message(session_id: str, req: MessageRequest) -> MessageResponse:
-    """Echo the user's message in a chat session."""
-    if session_id not in sessions_store:
-        raise HTTPException(status_code=404, detail="Session not found")
-    message = req.message
-    response_text = f"Echo: {message}"
-    sessions_store[session_id].append({"user": message, "assistant": response_text})
-    return MessageResponse(session_id=session_id, message=message, response=response_text)
+def get_task_plan(session_id: str, task_id: int) -> Dict[str, Any]:
+    _ensure_session(session_id)
+    task = _find_task(task_id)
+    return {"plan": [step.dict() for step in task.plan]}
 
 
 @app.get("/session/{session_id}/tasks/{task_id}/logs")
-async def get_task_logs(session_id: str, task_id: int) -> Dict[str, Any]:
-    """Return aggregated logs for a task and its steps.
+def get_task_logs(session_id: str, task_id: int) -> Dict[str, Any]:
+    _ensure_session(session_id)
+    task = _find_task(task_id)
 
-    The response contains two keys:
-
-    * ``task_logs`` – a list of strings representing high-level logs recorded
-      at the task level.
-    * ``step_logs`` – a list of dictionaries, each with ``step_index``, ``logs``
-      and ``error`` keys for each step in the plan.
-
-    A 404 error is raised if the task cannot be found.
-    """
-    tasks: List[Task] = load_tasks()
-    task_data = next((t for t in tasks if int(t.id) == task_id), None)
-    if task_data is None:
-        raise HTTPException(status_code=404, detail="Task not found")
-    task_logs: List[str] = task_data.logs or []
     step_logs: List[Dict[str, Any]] = []
-    for idx, step in enumerate(task_data.plan or []):
-        step_logs.append({
-            "step_index": idx,
-            "logs": step.logs or [],
-            "error": step.error,
-        })
-    return {"task_logs": task_logs, "step_logs": step_logs}
+    for idx, step in enumerate(task.plan):
+        step_logs.append(
+            {
+                "step_index": idx,
+                "description": step.description,
+                "status": step.status,
+                "logs": step.logs,
+                "error": step.error,
+            }
+        )
+
+    return {
+        "task_id": task.id,
+        "task_logs": task.logs,
+        "step_logs": step_logs,
+    }
 
 
-# Workspace file management endpoints
-#
-# These endpoints provide read-only access to the files in the workspace
-# directory. They support listing the contents of a directory and reading
-# the contents of a file. All paths are resolved relative to the workspace
-# and attempts to access files outside the workspace will result in errors.
+# --------------------------------------------------------------------------- #
+# Simple Chat
+# --------------------------------------------------------------------------- #
+
+
+@app.post("/session/{session_id}/message", response_model=MessageResponse)
+def send_message(session_id: str, request: MessageRequest) -> MessageResponse:
+    """
+    Simple echo-style chat endpoint. This is intentionally basic; the
+    main intelligence lives in the agents that operate on tasks.
+    """
+    _ensure_session(session_id)
+    response_text = f"Echo: {request.message}"
+    SESSIONS_STORE[session_id].append({"user": request.message, "assistant": response_text})
+    return MessageResponse(session_id=session_id, message=request.message, response=response_text)
+
+
+# --------------------------------------------------------------------------- #
+# Workspace / file explorer (read-only)
+# --------------------------------------------------------------------------- #
 
 
 @app.get("/workspace/list")
-async def list_workspace(path: str = "") -> Dict[str, Any]:
-    """List files and directories within the workspace at the given path.
-
-    Parameters
-    ----------
-    path: str
-        A relative directory path within the workspace. An empty string
-        refers to the workspace root.
-
-    Returns
-    -------
-    dict
-        A dictionary containing a list of entries with ``name`` and
-        ``type`` keys.
+def list_workspace_dir(path: str = Query("", description="Relative path inside workspace")) -> Dict[str, Any]:
+    """
+    List a directory inside the workspace. The workspace root is fixed;
+    attempts to escape it will raise an error in file_ops.
     """
     try:
-        entries = file_ops.list_dir(path)
-        return {"entries": entries}
+        entries = list_dir(path)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Directory not found")
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    return {"entries": entries}
 
 
 @app.get("/workspace/file/{file_path:path}")
-async def read_workspace_file(file_path: str) -> Dict[str, Any]:
-    """Read and return the contents of a file within the workspace.
-
-    The path must be relative to the workspace. This endpoint does not
-    perform any processing or code execution on the file contents.
-
-    Parameters
-    ----------
-    file_path: str
-        A relative file path within the workspace.
-
-    Returns
-    -------
-    dict
-        A dictionary containing the file path and its contents.
+def read_workspace_file(file_path: str) -> Dict[str, Any]:
+    """
+    Read the contents of a file from the workspace.
     """
     try:
-        content = file_ops.read_file(file_path)
-        return {"path": file_path, "content": content}
+        content = read_file(file_path)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="File not found")
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+
+    return {"path": file_path, "content": content}
