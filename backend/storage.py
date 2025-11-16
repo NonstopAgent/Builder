@@ -21,3 +21,17 @@ def save_tasks(tasks: List[Task]) -> None:
     serialized = [task.dict(by_alias=True) for task in tasks]
     with TASKS_FILE.open("w", encoding="utf-8") as f:
         json.dump(serialized, f, indent=2)
+
+
+def upsert_task(task: Task) -> None:
+    """Update an existing task or insert it if it doesn't exist."""
+    tasks = load_tasks()
+
+    for idx, existing in enumerate(tasks):
+        if existing.id == task.id:
+            tasks[idx] = task
+            break
+    else:
+        tasks.append(task)
+
+    save_tasks(tasks)
