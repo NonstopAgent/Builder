@@ -6,6 +6,8 @@ import {
   runTask,
   sendMessage,
   getTaskLogs,
+  listWorkspace,
+  readWorkspaceFile,
 } from './api';
 
 interface Step {
@@ -47,6 +49,10 @@ const App: React.FC = () => {
     task_logs: string[];
     step_logs: { step_index: number; logs: string[]; error: string | null }[];
   } | null>(null);
+  const [workspaceEntries, setWorkspaceEntries] = useState<{ name: string; type: string }[] | null>(null);
+  const [currentDir, setCurrentDir] = useState<string>('');
+  const [selectedFileContent, setSelectedFileContent] = useState<string | null>(null);
+  const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
 
   // Initialize a new session
   useEffect(() => {
@@ -69,6 +75,22 @@ const App: React.FC = () => {
     const tasksList = await getSessionState(sessionId);
     setTasks(tasksList as Task[]);
   }
+
+  // Load workspace directory entries when session or directory changes
+  useEffect(() => {
+    if (!sessionId) return;
+    async function loadDir() {
+      try {
+        const entries = await listWorkspace(currentDir);
+        setWorkspaceEntries(entries as any);
+        setSelectedFileContent(null);
+        setSelectedFilePath(null);
+      } catch (error) {
+        setWorkspaceEntries(null);
+      }
+    }
+    loadDir();
+  }, [sessionId, currentDir]);
 
   // Fetch logs whenever the selected task changes
   useEffect(() => {
@@ -110,6 +132,21 @@ const App: React.FC = () => {
   }
 
   const selectedTask = tasks.find((t) => t.id === selectedTaskId) || null;
+
+  async function loadDirectory(path: string) {
+    setCurrentDir(path);
+  }
+
+  async function loadFile(path: string) {
+    try {
+      const content = await readWorkspaceFile(path);
+      setSelectedFileContent(content);
+      setSelectedFilePath(path);
+    } catch (error) {
+      setSelectedFileContent(null);
+      setSelectedFilePath(null);
+    }
+  }
 
   return (
     <div className="flex h-screen">
@@ -273,6 +310,55 @@ const App: React.FC = () => {
                         )}
                       </div>
                     ))}
+                  </div>
+                )}
+              </div>
+            )}
+            {workspaceEntries && (
+              <div className="border-t pt-4 mt-4">
+                <h3 className="font-semibold mb-2">Workspace</h3>
+                <div className="mb-2 flex items-center">
+                  <span className="font-semibold">Current Directory: {currentDir || '/'}</span>
+                  {currentDir && (
+                    <button
+                      onClick={() => {
+                        const parts = currentDir.split('/');
+                        parts.pop();
+                        loadDirectory(parts.join('/'));
+                      }}
+                      className="ml-4 text-blue-600 underline text-sm"
+                    >
+                      Up
+                    </button>
+                  )}
+                </div>
+                <ul className="space-y-1 text-sm">
+                  {workspaceEntries.map((entry) => (
+                    <li key={entry.name}>
+                      {entry.type === 'directory' ? (
+                        <button
+                          onClick={() => loadDirectory(currentDir ? `${currentDir}/${entry.name}` : entry.name)}
+                          className="text-blue-600 underline"
+                        >
+                          📁 {entry.name}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => loadFile(currentDir ? `${currentDir}/${entry.name}` : entry.name)}
+                          className="text-gray-800 hover:underline"
+                        >
+                          📄 {entry.name}
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                {selectedFileContent && selectedFilePath && (
+                  <div className="mt-4">
+                    <h4 className="font-semibold mb-1">File: {selectedFilePath}</h4>
+                    <pre className="bg-gray-100 p-2 overflow-auto max-h-48 text-xs whitespace-pre-wrap">
+                      {selectedFileContent}
+                    </pre>
                   </div>
                 )}
               </div>
