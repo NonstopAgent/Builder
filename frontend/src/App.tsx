@@ -5,6 +5,7 @@ import {
   createTask,
   runTask,
   sendMessage,
+  getTaskLogs,
 } from './api';
 
 interface Step {
@@ -42,6 +43,10 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [chatInput, setChatInput] = useState<string>('');
   const [messages, setMessages] = useState<MessagePair[]>([]);
+  const [taskLogs, setTaskLogs] = useState<{
+    task_logs: string[];
+    step_logs: { step_index: number; logs: string[]; error: string | null }[];
+  } | null>(null);
 
   // Initialize a new session
   useEffect(() => {
@@ -64,6 +69,23 @@ const App: React.FC = () => {
     const tasksList = await getSessionState(sessionId);
     setTasks(tasksList as Task[]);
   }
+
+  // Fetch logs whenever the selected task changes
+  useEffect(() => {
+    if (!sessionId || selectedTaskId === null) {
+      setTaskLogs(null);
+      return;
+    }
+    async function fetchLogs() {
+      try {
+        const logs = await getTaskLogs(sessionId, selectedTaskId);
+        setTaskLogs(logs);
+      } catch (error) {
+        setTaskLogs(null);
+      }
+    }
+    fetchLogs();
+  }, [sessionId, selectedTaskId]);
 
   async function handleCreateTask() {
     if (!sessionId || goalInput.trim() === '') return;
@@ -200,20 +222,61 @@ const App: React.FC = () => {
                   </div>
                 ))}
               </div>
-                <input
-                  type="text"
-                  placeholder="Say something..."
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  className="w-full mb-2 p-2 border rounded"
-                />
-                <button
-                  onClick={handleSendChat}
-                  className="w-full bg-purple-600 text-white p-2 rounded"
-                >
-                  Send
-                </button>
+              <input
+                type="text"
+                placeholder="Say something..."
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                className="w-full mb-2 p-2 border rounded"
+              />
+              <button
+                onClick={handleSendChat}
+                className="w-full bg-purple-600 text-white p-2 rounded"
+              >
+                Send
+              </button>
             </div>
+            {taskLogs && (
+              <div className="border-t pt-4 mt-4">
+                <h3 className="font-semibold mb-2">Logs</h3>
+                {taskLogs.task_logs && taskLogs.task_logs.length > 0 && (
+                  <div className="mb-4">
+                    <h4 className="font-semibold">Task Logs</h4>
+                    <ul className="list-disc ml-5 text-sm">
+                      {taskLogs.task_logs.map((log, idx) => (
+                        <li key={idx}>{log}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {taskLogs.step_logs && taskLogs.step_logs.length > 0 && (
+                  <div>
+                    <h4 className="font-semibold">Step Logs</h4>
+                    {taskLogs.step_logs.map((entry, idx) => (
+                      <div key={idx} className="mb-2">
+                        <div className="font-semibold">
+                          Step {entry.step_index + 1}
+                        </div>
+                        {entry.logs && entry.logs.length > 0 ? (
+                          <ul className="list-disc ml-5 text-sm">
+                            {entry.logs.map((log, li) => (
+                              <li key={li}>{log}</li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="text-sm text-gray-600">No logs</p>
+                        )}
+                        {entry.error && (
+                          <div className="text-red-600 text-sm">
+                            Error: {entry.error}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         ) : (
           <p>Select a task from the left to view details.</p>

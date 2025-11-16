@@ -139,3 +139,31 @@ async def send_message(session_id: str, req: MessageRequest) -> MessageResponse:
     response_text = f"Echo: {message}"
     sessions_store[session_id].append({"user": message, "assistant": response_text})
     return MessageResponse(session_id=session_id, message=message, response=response_text)
+
+
+@app.get("/session/{session_id}/tasks/{task_id}/logs")
+async def get_task_logs(session_id: str, task_id: int) -> Dict[str, Any]:
+    """Return aggregated logs for a task and its steps.
+
+    The response contains two keys:
+
+    * ``task_logs`` – a list of strings representing high-level logs recorded
+      at the task level.
+    * ``step_logs`` – a list of dictionaries, each with ``step_index``, ``logs``
+      and ``error`` keys for each step in the plan.
+
+    A 404 error is raised if the task cannot be found.
+    """
+    tasks: List[Task] = load_tasks()
+    task_data = next((t for t in tasks if int(t.id) == task_id), None)
+    if task_data is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    task_logs: List[str] = task_data.logs or []
+    step_logs: List[Dict[str, Any]] = []
+    for idx, step in enumerate(task_data.plan or []):
+        step_logs.append({
+            "step_index": idx,
+            "logs": step.logs or [],
+            "error": step.error,
+        })
+    return {"task_logs": task_logs, "step_logs": step_logs}
