@@ -15,6 +15,7 @@ import json
 import logging
 
 from ..models import Step
+from ..utils import file_ops
 
 try:
     import openai  # type: ignore
@@ -77,24 +78,51 @@ class SuperBuilderAgent:
         if current_index < len(task["plan"]):
             step: Dict[str, Any] = task["plan"][current_index]
             if step.get("status") == "pending":
-                # Build a prompt describing the step and goal
-                prompt = (
-                    "You are executing the following step as part of a build/planning task.\n"
-                    f"Goal: {task.get('goal', '')}\n"
-                    f"Step: {step['description']}\n\n"
-                    "Please describe what actions you would take to perform this step and summarize the result concisely."
-                )
-                assistant_reply = self._call_openai(prompt, max_tokens=256)
-                if assistant_reply:
-                    step.setdefault("logs", []).append(assistant_reply)
-                    step["result"] = assistant_reply
-                    # Also append the reply to the task-level logs
-                    task.setdefault("logs", []).append(assistant_reply)
-                else:
-                    fallback = f"Executed step: {step['description']}"
-                    step.setdefault("logs", []).append(fallback)
-                    step["result"] = fallback
-                    task.setdefault("logs", []).append(fallback)
+                description_lower = step["description"].lower()
+                handled = False
+
+                if description_lower.startswith("read file"):
+                    parts = step["description"].split(":", 1)
+                    if len(parts) == 2:
+                        relative_path = parts[1].strip()
+                        try:
+                            content = file_ops.read_file(relative_path)
+                            step["result"] = content
+                            step.setdefault("logs", []).append(
+                                f"Read {relative_path} successfully."
+                            )
+                            task.setdefault("logs", []).append(
+                                f"Read {relative_path} successfully."
+                            )
+                        except Exception as exc:  # noqa: BLE001
+                            error_msg = str(exc)
+                            step.setdefault("error", error_msg)
+                            step.setdefault("logs", []).append(
+                                f"Error reading {relative_path}: {error_msg}"
+                            )
+                            task.setdefault("logs", []).append(
+                                f"Error reading {relative_path}: {error_msg}"
+                            )
+                        handled = True
+
+                if not handled:
+                    prompt = (
+                        "You are executing the following step as part of a build/planning task.\n"
+                        f"Goal: {task.get('goal', '')}\n"
+                        f"Step: {step['description']}\n\n"
+                        "Please describe what actions you would take to perform this step and summarize the result concisely."
+                    )
+                    assistant_reply = self._call_openai(prompt, max_tokens=256)
+                    if assistant_reply:
+                        step.setdefault("logs", []).append(assistant_reply)
+                        step["result"] = assistant_reply
+                        task.setdefault("logs", []).append(assistant_reply)
+                    else:
+                        fallback = f"Executed step: {step['description']}"
+                        step.setdefault("logs", []).append(fallback)
+                        step["result"] = fallback
+                        task.setdefault("logs", []).append(fallback)
+
                 step["status"] = "completed"
                 current_index += 1
                 task["current_step"] = current_index
