@@ -60,19 +60,6 @@ class SuperBuilderAgent:
         If the ``openai`` package is not available or an API error occurs,
         this function returns ``None``. The caller should handle a ``None``
         response and implement a fallback strategy.
-
-        Parameters
-        ----------
-        prompt: str
-            The prompt to send to the language model.
-        max_tokens: int
-            The maximum number of tokens to generate in the response.
-
-        Returns
-        -------
-        Optional[str]
-            The content of the assistant's reply, or ``None`` if the call
-            failed.
         """
         if openai is None:
             logger.warning("openai package is not installed; falling back to static planning")
@@ -107,27 +94,11 @@ class SuperBuilderAgent:
         pending step as completed. A simple placeholder result is
         recorded for each completed step. Timestamps and task status
         fields are updated accordingly.
-
-        Parameters
-        ----------
-        task: dict
-            A task dictionary adhering to the schema defined in
-            ``backend.models.Task``. It must contain at least
-            ``goal``, ``plan``, ``current_step`` and ``status`` keys.
-
-        Returns
-        -------
-        dict
-            The updated task dictionary after planning/execution.
         """
         # Ensure the plan exists; if empty create a new plan
         if not task.get("plan"):
             plan_descriptions = self._create_plan(task.get("goal", ""))
-            # Build Step objects with default fields
-            task["plan"] = [
-                Step(description=desc).dict()
-                for desc in plan_descriptions
-            ]
+            task["plan"] = [Step(description=desc).dict() for desc in plan_descriptions]
             task["status"] = "in_progress"
             task["current_step"] = 0
 
@@ -141,7 +112,8 @@ class SuperBuilderAgent:
                 # Allow custom handling for specific command-like steps.
                 description_lower = step["description"].lower()
                 handled = False
-                # Check for "Read file: <path>" pattern to read file contents from the workspace
+
+                # Read file
                 if description_lower.startswith("read file"):
                     parts = step["description"].split(":", 1)
                     if len(parts) == 2:
@@ -151,13 +123,14 @@ class SuperBuilderAgent:
                             step["result"] = content
                             step.setdefault("logs", []).append(f"Read {relative_path} successfully.")
                             task.setdefault("logs", []).append(f"Read {relative_path} successfully.")
-                        except Exception as exc:  # noqa: BLE001
+                        except Exception as exc:
                             error_msg = str(exc)
                             step.setdefault("error", error_msg)
                             step.setdefault("logs", []).append(f"Error reading {relative_path}: {error_msg}")
                             task.setdefault("logs", []).append(f"Error reading {relative_path}: {error_msg}")
                         handled = True
-                # Check for "Write file: <path>" pattern to write file contents to the workspace
+
+                # Write file
                 elif description_lower.startswith("write file"):
                     parts = step["description"].split(":", 1)
                     if len(parts) == 2:
@@ -177,15 +150,64 @@ class SuperBuilderAgent:
                                 step["result"] = f"Wrote content to {relative_path}"
                                 step.setdefault("logs", []).append(f"Wrote {relative_path} successfully.")
                                 task.setdefault("logs", []).append(f"Wrote {relative_path} successfully.")
-                            except Exception as exc:  # noqa: BLE001
+                            except Exception as exc:
                                 error_msg = str(exc)
                                 step.setdefault("error", error_msg)
                                 step.setdefault("logs", []).append(f"Error writing {relative_path}: {error_msg}")
                                 task.setdefault("logs", []).append(f"Error writing {relative_path}: {error_msg}")
                         handled = True
-                # If the step was not handled by custom logic, use OpenAI or fallback execution
+
+                # Diff file
+                elif description_lower.startswith("diff file"):
+                    parts = step["description"].split(":", 1)
+                    if len(parts) == 2:
+                        relative_path = parts[1].strip()
+                        metadata = step.get("metadata", {})
+                        new_content = None
+                        # accept both "content" and "new_content"
+                        if isinstance(metadata, dict):
+                            new_content = metadata.get("content") or metadata.get("new_content")
+                        if new_content is None:
+                            error_msg = "No new content provided in metadata for diff file"
+                            step.setdefault("error", error_msg)
+                            step.setdefault("logs", []).append(f"Error diffing {relative_path}: {error_msg}")
+                            task.setdefault("logs", []).append(f"Error diffing {relative_path}: {error_msg}")
+                        else:
+                            try:
+                                original_content = file_ops.read_file(relative_path)
+                            except Exception as exc:
+                                error_msg = str(exc)
+                                step.setdefault("error", error_msg)
+                                step.setdefault("logs", []).append(f"Error reading {relative_path}: {error_msg}")
+                                task.setdefault("logs", []).append(f"Error reading {relative_path}: {error_msg}")
+                            else:
+                                diff_lines = file_ops.diff_text(original_content, new_content)
+                                step["result"] = "\n".join(diff_lines)
+                                step.setdefault("logs", []).append(f"Generated diff for {relative_path}.")
+                                task.setdefault("logs", []).append(f"Generated diff for {relative_path}.")
+                        handled = True
+
+                # List directory
+                elif description_lower.startswith("list dir"):
+                    parts = step["description"].split(":", 1)
+                    # If a path is provided after the colon, use it; otherwise list the root
+                    relative_path = parts[1].strip() if len(parts) == 2 else ""
+                    try:
+                        entries = file_ops.list_dir(relative_path)
+                        step["result"] = json.dumps(entries)
+                        dir_label = relative_path if relative_path else "."
+                        step.setdefault("logs", []).append(f"Listed directory {dir_label} successfully.")
+                        task.setdefault("logs", []).append(f"Listed directory {dir_label} successfully.")
+                    except Exception as exc:
+                        error_msg = str(exc)
+                        dir_label = relative_path if relative_path else "."
+                        step.setdefault("error", error_msg)
+                        step.setdefault("logs", []).append(f"Error listing directory {dir_label}: {error_msg}")
+                        task.setdefault("logs", []).append(f"Error listing directory {dir_label}: {error_msg}")
+                    handled = True
+
+                # Default: use OpenAI or fallback
                 if not handled:
-                    # Attempt to execute the step via OpenAI to generate a result/logs
                     prompt = (
                         f"You are executing the following step as part of a build/planning task.\n"
                         f"Goal: {task.get('goal', '')}\n"
@@ -194,55 +216,32 @@ class SuperBuilderAgent:
                     )
                     assistant_reply = self._call_openai(prompt, max_tokens=256)
                     if assistant_reply:
-                        # Record the AI-generated result and log
                         step.setdefault("logs", []).append(assistant_reply)
                         step["result"] = assistant_reply
-                        # Also append the reply to the task-level logs
                         task.setdefault("logs", []).append(assistant_reply)
                     else:
-                        # Fallback: record a simple placeholder result
                         fallback = f"Executed step: {step['description']}"
                         step.setdefault("logs", []).append(fallback)
                         step["result"] = fallback
                         task.setdefault("logs", []).append(fallback)
-                # Mark the step as completed and advance the index
+
+                # Mark the step as completed and move to the next
                 step["status"] = "completed"
                 current_index += 1
                 task["current_step"] = current_index
 
-        # Update overall task status based on remaining pending steps
+        # Update task status
         if current_index >= len(task["plan"]):
             task["status"] = "completed"
         else:
             task["status"] = "in_progress"
-
-        # Update the timestamp fields
         task["updated_at"] = datetime.utcnow().isoformat()
 
         return task
 
     def _create_plan(self, goal: str) -> List[str]:
-        """Generate a multi-step plan for the given task goal.
-
-        This method first attempts to call an LLM (via the OpenAI API) to
-        produce a series of high-level steps tailored to the goal. The
-        expected response is a JSON array of short strings, each
-        describing a step. If the API call fails or the response
-        cannot be parsed, a static three-step plan is returned as a
-        fallback.
-
-        Parameters
-        ----------
-        goal: str
-            The overall objective of the task.
-
-        Returns
-        -------
-        list of str
-            A list containing descriptions for each planned step.
-        """
+        """Generate a multi-step plan for the given task goal."""
         cleaned_goal = goal.strip() or "the task"
-        # Attempt to use OpenAI to generate a plan
         plan_prompt = (
             "You are an autonomous software development assistant tasked with "
             "breaking down high-level goals into concrete, incremental steps.\n"
@@ -253,16 +252,14 @@ class SuperBuilderAgent:
         assistant_reply = self._call_openai(plan_prompt, max_tokens=256)
         if assistant_reply:
             try:
-                # Try to parse the response as JSON
                 plan_list = json.loads(assistant_reply)
                 if isinstance(plan_list, list) and all(isinstance(item, str) for item in plan_list):
                     return plan_list
             except json.JSONDecodeError:
-                # Not valid JSON; attempt to split by newline or semicolon
                 lines = [line.strip("- ").strip() for line in assistant_reply.split("\n") if line.strip()]
                 if lines:
                     return lines
-        # Fallback to a generic three-step plan
+        # Fallback plan
         return [
             f"Analyze the goal: {cleaned_goal}",
             f"Design and implement a solution for: {cleaned_goal}",
@@ -271,11 +268,5 @@ class SuperBuilderAgent:
 
 
 def get_agent() -> SuperBuilderAgent:
-    """Factory function to obtain a SuperBuilderAgent.
-
-    Returns
-    -------
-    SuperBuilderAgent
-        A new instance of the agent ready to execute tasks.
-    """
+    """Factory function to obtain a SuperBuilderAgent."""
     return SuperBuilderAgent()
