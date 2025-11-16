@@ -48,15 +48,18 @@ type TaskLogs = {
   }[];
 };
 
+type TabId = "chat" | "plan" | "logs" | "workspace";
+
 const App: React.FC = () => {
   // Core state
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
 
-  // New task form
+  // Forms
   const [goalInput, setGoalInput] = useState("");
   const [typeInput, setTypeInput] = useState("build");
+  const [chatInput, setChatInput] = useState("");
 
   // Loading flags
   const [initializing, setInitializing] = useState(true);
@@ -64,11 +67,8 @@ const App: React.FC = () => {
   const [runningTask, setRunningTask] = useState(false);
   const [runningAll, setRunningAll] = useState(false);
 
-  // Chat
-  const [chatInput, setChatInput] = useState("");
+  // Chat + logs
   const [messages, setMessages] = useState<MessagePair[]>([]);
-
-  // Logs
   const [taskLogs, setTaskLogs] = useState<TaskLogs | null>(null);
   const [logsLoading, setLogsLoading] = useState(false);
 
@@ -79,27 +79,51 @@ const App: React.FC = () => {
   const [selectedFileContent, setSelectedFileContent] = useState("");
   const [workspaceLoading, setWorkspaceLoading] = useState(false);
 
+  // UI
+  const [activeTab, setActiveTab] = useState<TabId>("chat");
+
+  // Derived
+  const selectedTask: Task | undefined =
+    selectedTaskId != null ? tasks.find((t) => t.id === selectedTaskId) : undefined;
+
+  const canRun =
+    selectedTask &&
+    !runningTask &&
+    !runningAll &&
+    selectedTask.status !== "completed" &&
+    selectedTask.status !== "failed";
+
   // ---------------------------------------------------------------------------
-  // Initial session + tasks
+  // Initial load
   // ---------------------------------------------------------------------------
 
   useEffect(() => {
     const bootstrap = async () => {
       try {
-        const newSessionId = await createSession();
-        setSessionId(newSessionId);
-
-        const state = await getSessionState(newSessionId);
+        const sid = await createSession();
+        setSessionId(sid);
+        const state = await getSessionState(sid);
         setTasks(state.tasks || []);
       } catch (err) {
-        console.error("Failed to initialize session:", err);
+        console.error("Failed to initialize:", err);
       } finally {
         setInitializing(false);
       }
     };
-
     bootstrap();
   }, []);
+
+  useEffect(() => {
+    loadDirectory("");
+  }, []);
+
+  useEffect(() => {
+    if (selectedTaskId != null) {
+      loadTaskLogs(selectedTaskId);
+    } else {
+      setTaskLogs(null);
+    }
+  }, [selectedTaskId]);
 
   // ---------------------------------------------------------------------------
   // Helpers
@@ -115,15 +139,32 @@ const App: React.FC = () => {
     }
   };
 
-  const selectedTask: Task | undefined =
-    selectedTaskId != null ? tasks.find((t) => t.id === selectedTaskId) : undefined;
+  const statusChip = (status: string) => {
+    const base = "px-2 py-0.5 rounded-full text-[11px] border";
+    switch (status) {
+      case "completed":
+        return `${base} bg-emerald-500/10 text-emerald-300 border-emerald-400/40`;
+      case "in_progress":
+        return `${base} bg-amber-500/10 text-amber-300 border-amber-400/40`;
+      case "failed":
+        return `${base} bg-rose-500/10 text-rose-300 border-rose-400/40`;
+      default:
+        return `${base} bg-slate-800 text-slate-300 border-slate-600`;
+    }
+  };
 
-  const canRun =
-    selectedTask &&
-    !runningTask &&
-    !runningAll &&
-    selectedTask.status !== "completed" &&
-    selectedTask.status !== "failed";
+  const stepStatusColor = (status: string) => {
+    switch (status) {
+      case "completed":
+        return "text-emerald-300";
+      case "in_progress":
+        return "text-amber-300";
+      case "failed":
+        return "text-rose-300";
+      default:
+        return "text-slate-300";
+    }
+  };
 
   // ---------------------------------------------------------------------------
   // Task actions
@@ -137,6 +178,7 @@ const App: React.FC = () => {
       setTasks((prev) => [...prev, newTask]);
       setGoalInput("");
       setSelectedTaskId(newTask.id);
+      setActiveTab("plan");
     } catch (err) {
       console.error("Failed to create task:", err);
     } finally {
@@ -166,7 +208,7 @@ const App: React.FC = () => {
       await refreshTasks();
       await loadTaskLogs(selectedTaskId);
     } catch (err) {
-      console.error("Failed to run task to completion:", err);
+      console.error("Failed to run task all:", err);
     } finally {
       setRunningAll(false);
     }
@@ -183,7 +225,7 @@ const App: React.FC = () => {
       const logs = await getTaskLogs(sessionId, taskId);
       setTaskLogs(logs);
     } catch (err) {
-      console.error("Failed to load task logs:", err);
+      console.error("Failed to load logs:", err);
     } finally {
       setLogsLoading(false);
     }
@@ -218,7 +260,7 @@ const App: React.FC = () => {
       setSelectedFilePath("");
       setSelectedFileContent("");
     } catch (err) {
-      console.error("Failed to list workspace:", err);
+      console.error("Failed to load workspace:", err);
     } finally {
       setWorkspaceLoading(false);
     }
@@ -230,7 +272,7 @@ const App: React.FC = () => {
       setSelectedFilePath(res.path);
       setSelectedFileContent(res.content);
     } catch (err) {
-      console.error("Failed to read workspace file:", err);
+      console.error("Failed to read file:", err);
     }
   };
 
@@ -241,50 +283,6 @@ const App: React.FC = () => {
     loadDirectory(parts.join("/"));
   };
 
-  // Load root workspace on first mount
-  useEffect(() => {
-    loadDirectory("");
-  }, []);
-
-  // When selected task changes, pull logs
-  useEffect(() => {
-    if (selectedTaskId != null) {
-      loadTaskLogs(selectedTaskId);
-    }
-  }, [selectedTaskId]);
-
-  // ---------------------------------------------------------------------------
-  // UI helpers
-  // ---------------------------------------------------------------------------
-
-  const statusColor = (status: string) => {
-    switch (status) {
-      case "completed":
-        return "bg-emerald-500/20 text-emerald-300 border border-emerald-400/40";
-      case "in_progress":
-        return "bg-amber-500/20 text-amber-300 border border-amber-400/40";
-      case "failed":
-        return "bg-rose-500/20 text-rose-300 border border-rose-400/40";
-      case "queued":
-      case "todo":
-      default:
-        return "bg-slate-700/50 text-slate-200 border border-slate-500/60";
-    }
-  };
-
-  const stepStatusColor = (status: string) => {
-    switch (status) {
-      case "completed":
-        return "text-emerald-300";
-      case "in_progress":
-        return "text-amber-300";
-      case "failed":
-        return "text-rose-300";
-      default:
-        return "text-slate-300";
-    }
-  };
-
   // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
@@ -293,32 +291,36 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center">
         <div className="space-y-2 text-center">
-          <div className="h-10 w-10 rounded-full border-2 border-slate-500 border-t-blue-400 animate-spin mx-auto" />
-          <p className="text-sm text-slate-400">Spinning up your Builder session...</p>
+          <div className="h-10 w-10 rounded-full border-2 border-slate-600 border-t-blue-400 animate-spin mx-auto" />
+          <p className="text-sm text-slate-400">Starting your Builder session...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex">
-      {/* LEFT SIDEBAR */}
+    <div className="min-h-screen bg-[#050816] text-slate-100 flex">
+      {/* LEFT SIDEBAR ------------------------------------------------------- */}
       <aside className="w-72 border-r border-slate-800 bg-gradient-to-b from-slate-950 to-slate-900 flex flex-col">
-        <div className="px-5 pt-4 pb-3 border-b border-slate-800 flex items-center justify-between">
-          <div>
-            <div className="text-xs uppercase tracking-[0.2em] text-slate-500">Builder</div>
-            <div className="text-lg font-semibold text-slate-100">Super Console</div>
+        <div className="px-4 pt-4 pb-3 border-b border-slate-800">
+          <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
+            Builder
           </div>
-          <div className="text-[10px] px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-400/40">
-            Session
+          <div className="flex items-center justify-between mt-1">
+            <span className="text-sm font-semibold">Super Console</span>
+            <span className="text-[10px] px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-400/40">
+              Session
+            </span>
           </div>
         </div>
 
-        <div className="px-5 py-4 border-b border-slate-800 space-y-3">
-          <div className="text-xs uppercase tracking-wide text-slate-400">New Task</div>
+        <div className="px-4 py-4 border-b border-slate-800 space-y-3">
+          <div className="text-[11px] uppercase tracking-wide text-slate-400">
+            New Task
+          </div>
           <input
             className="w-full rounded-md bg-slate-900/70 border border-slate-700 px-3 py-2 text-sm placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            placeholder="Describe what you want to build..."
+            placeholder="What do you want to build?"
             value={goalInput}
             onChange={(e) => setGoalInput(e.target.value)}
           />
@@ -340,20 +342,22 @@ const App: React.FC = () => {
           </button>
         </div>
 
-        <div className="px-5 pt-3 pb-2 text-xs uppercase tracking-wide text-slate-400">
+        <div className="px-4 pt-3 pb-2 text-[11px] uppercase tracking-wide text-slate-400">
           Tasks
         </div>
-
         <div className="flex-1 overflow-y-auto px-2 pb-4 space-y-1">
           {tasks.length === 0 && (
-            <div className="text-xs text-slate-500 px-3">
-              No tasks yet. Create something on the left and let the agent build it.
+            <div className="text-xs text-slate-500 px-2">
+              No tasks yet. Describe something above and let the agent handle it.
             </div>
           )}
           {tasks.map((task) => (
             <button
               key={task.id}
-              onClick={() => setSelectedTaskId(task.id)}
+              onClick={() => {
+                setSelectedTaskId(task.id);
+                setActiveTab("plan");
+              }}
               className={`w-full text-left rounded-md px-3 py-2 text-sm transition border ${
                 selectedTaskId === task.id
                   ? "bg-slate-800 border-blue-500/70"
@@ -364,13 +368,7 @@ const App: React.FC = () => {
                 <span className="text-xs font-semibold text-slate-300">
                   #{task.id} · {task.type}
                 </span>
-                <span
-                  className={`text-[10px] px-2 py-0.5 rounded-full whitespace-nowrap ${statusColor(
-                    task.status
-                  )}`}
-                >
-                  {task.status}
-                </span>
+                <span className={statusChip(task.status)}>{task.status}</span>
               </div>
               <div className="mt-1 text-xs text-slate-400 line-clamp-2">{task.goal}</div>
             </button>
@@ -378,26 +376,22 @@ const App: React.FC = () => {
         </div>
       </aside>
 
-      {/* MAIN + RIGHT PANELS */}
-      <div className="flex-1 flex">
-        {/* CENTER – Task Detail + Chat */}
-        <main className="flex-1 flex flex-col border-r border-slate-800">
-          <header className="h-14 border-b border-slate-800 flex items-center justify-between px-6 bg-slate-950/70 backdrop-blur">
+      {/* MAIN CHAT-STYLE AREA ---------------------------------------------- */}
+      <main className="flex-1 flex justify-center">
+        <div className="max-w-5xl w-full flex flex-col">
+          {/* HEADER */}
+          <header className="h-14 border-b border-slate-800 flex items-center justify-between px-6 bg-slate-950/80 backdrop-blur">
             {selectedTask ? (
               <>
                 <div className="space-y-0.5">
-                  <div className="text-xs text-slate-500 uppercase tracking-wide">
-                    Active Task · #{selectedTask.id}
+                  <div className="text-[11px] uppercase tracking-wide text-slate-500">
+                    Task #{selectedTask.id}
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="text-sm font-medium text-slate-100 truncate max-w-md">
                       {selectedTask.goal}
                     </div>
-                    <span
-                      className={`text-[10px] px-2 py-0.5 rounded-full ${statusColor(
-                        selectedTask.status
-                      )}`}
-                    >
+                    <span className={statusChip(selectedTask.status)}>
                       {selectedTask.status}
                     </span>
                   </div>
@@ -408,284 +402,300 @@ const App: React.FC = () => {
                     disabled={!canRun || runningTask}
                     className="px-3 py-1.5 rounded-md bg-slate-800 text-xs font-medium text-slate-100 hover:bg-slate-700 disabled:bg-slate-800/60 disabled:text-slate-500 transition"
                   >
-                    {runningTask ? "Running..." : "Run Next Step"}
+                    {runningTask ? "Running…" : "Run Step"}
                   </button>
                   <button
                     onClick={handleRunTaskAll}
                     disabled={!canRun || runningAll}
                     className="px-3 py-1.5 rounded-md bg-blue-600 text-xs font-medium text-white hover:bg-blue-500 disabled:bg-slate-700 disabled:text-slate-400 transition"
                   >
-                    {runningAll ? "Running All..." : "Run All Steps"}
+                    {runningAll ? "Running All…" : "Run All"}
                   </button>
                 </div>
               </>
             ) : (
               <div className="text-sm text-slate-400">
-                Select a task from the left to see its plan and logs.
+                Create a task on the left, then select it to start building.
               </div>
             )}
           </header>
 
-          <div className="flex-1 grid grid-rows-2 gap-0">
-            {/* PLAN + STEPS */}
-            <section className="border-b border-slate-800 overflow-y-auto bg-slate-950/50">
-              <div className="px-6 py-3 flex items-center justify-between">
-                <div className="text-xs uppercase tracking-wide text-slate-400">
-                  Plan & Steps
+          {/* TABS */}
+          <div className="border-b border-slate-800 px-6 flex gap-4 text-xs">
+            {(["chat", "plan", "logs", "workspace"] as TabId[]).map((tab) => {
+              const label =
+                tab === "chat"
+                  ? "Conversation"
+                  : tab === "plan"
+                  ? "Plan"
+                  : tab === "logs"
+                  ? "Logs"
+                  : "Workspace";
+              const active = activeTab === tab;
+              return (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`py-2 border-b-2 -mb-px ${
+                    active
+                      ? "border-blue-500 text-slate-100"
+                      : "border-transparent text-slate-500 hover:text-slate-300"
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* CONTENT AREA */}
+          <div className="flex-1 flex flex-col">
+            {/* TAB: CHAT ---------------------------------------------------- */}
+            {activeTab === "chat" && (
+              <>
+                <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+                  {!selectedTask && messages.length === 0 && (
+                    <div className="text-sm text-slate-500">
+                      This is a lightweight chat stream (like notes). The real building happens
+                      through tasks and plans.
+                    </div>
+                  )}
+
+                  {selectedTask && (
+                    <div className="text-xs text-slate-400">
+                      You’re viewing chat for session {" "}
+                      <span className="text-slate-200 font-mono">{sessionId}</span>. Use this
+                      area for quick notes or instructions alongside your tasks.
+                    </div>
+                  )}
+
+                  {messages.map((m, idx) => (
+                    <div key={idx} className="space-y-2">
+                      <div className="flex justify-end">
+                        <div className="max-w-xl rounded-2xl bg-blue-600 text-xs px-4 py-2 text-white">
+                          {m.user}
+                        </div>
+                      </div>
+                      <div className="flex justify-start">
+                        <div className="max-w-xl rounded-2xl bg-slate-800 text-xs px-4 py-2 text-slate-100">
+                          {m.assistant}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                {selectedTask && (
-                  <div className="text-[11px] text-slate-500">
-                    {selectedTask.plan?.length || 0} steps ·{" "}
-                    {selectedTask.current_step != null
-                      ? `Current: ${selectedTask.current_step + 1}`
-                      : "No active step"}
+
+                {/* Chat input bar like ChatGPT */}
+                <div className="border-t border-slate-800 px-4 py-3">
+                  <div className="max-w-3xl mx-auto flex items-center gap-2">
+                    <input
+                      className="flex-1 rounded-lg bg-slate-900/80 border border-slate-700 px-4 py-2 text-sm placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      placeholder="Send a message (for notes / echo)…"
+                      value={chatInput}
+                      onChange={(e) => setChatInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSendMessage();
+                        }
+                      }}
+                    />
+                    <button
+                      onClick={handleSendMessage}
+                      disabled={!chatInput.trim()}
+                      className="rounded-lg bg-slate-800 px-4 py-2 text-xs font-medium text-slate-100 hover:bg-slate-700 disabled:bg-slate-800/60 disabled:text-slate-500 transition"
+                    >
+                      Send
+                    </button>
                   </div>
-                )}
-              </div>
-              <div className="px-6 pb-4 space-y-2">
+                </div>
+              </>
+            )}
+
+            {/* TAB: PLAN ---------------------------------------------------- */}
+            {activeTab === "plan" && (
+              <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
                 {!selectedTask && (
-                  <div className="text-xs text-slate-500">
-                    No task selected. Choose a task on the left or create a new one.
+                  <div className="text-sm text-slate-500">
+                    No task selected. Choose one from the left to view its plan.
                   </div>
                 )}
                 {selectedTask && selectedTask.plan.length === 0 && (
-                  <div className="text-xs text-slate-500">
-                    No plan yet. Click <span className="font-semibold">Run Next Step</span> or{" "}
-                    <span className="font-semibold">Run All Steps</span> to let the agent plan.
+                  <div className="text-sm text-slate-500">
+                    No plan yet. Click <span className="font-semibold">Run Step</span> or {" "}
+                    <span className="font-semibold">Run All</span> to let the agent draft a plan.
                   </div>
                 )}
                 {selectedTask &&
                   selectedTask.plan.map((step, idx) => (
                     <div
                       key={idx}
-                      className="rounded-md border border-slate-800 bg-slate-900/60 px-3 py-2 text-xs"
+                      className="rounded-lg border border-slate-800 bg-slate-900/60 px-4 py-3 text-sm"
                     >
-                      <div className="flex items-center justify-between gap-2 mb-1">
+                      <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-2">
-                          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-slate-800 text-[11px] text-slate-300">
+                          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-800 text-[11px] text-slate-300">
                             {idx + 1}
                           </span>
-                          <span className={`font-medium ${stepStatusColor(step.status)}`}>
+                          <span className={`text-xs font-semibold ${stepStatusColor(step.status)}`}>
                             {step.status}
                           </span>
                         </div>
                       </div>
-                      <div className="text-slate-200 mb-1">{step.description}</div>
+                      <div className="text-slate-100">{step.description}</div>
                       {step.error && (
-                        <div className="text-[11px] text-rose-300 mt-1">
-                          Error: {step.error}
-                        </div>
-                      )}
-                      {step.logs && step.logs.length > 0 && (
-                        <details className="mt-1">
-                          <summary className="text-[11px] text-slate-400 cursor-pointer">
-                            Step logs ({step.logs.length})
-                          </summary>
-                          <ul className="mt-1 space-y-1 text-[11px] text-slate-400">
-                            {step.logs.map((log, i) => (
-                              <li key={i}>• {log}</li>
-                            ))}
-                          </ul>
-                        </details>
+                        <div className="mt-1 text-xs text-rose-300">Error: {step.error}</div>
                       )}
                     </div>
                   ))}
               </div>
-            </section>
+            )}
 
-            {/* CHAT */}
-            <section className="flex flex-col bg-slate-950">
-              <div className="px-6 py-3 border-b border-slate-800 flex items-center justify-between">
-                <div className="text-xs uppercase tracking-wide text-slate-400">
-                  Chat (for quick notes / echo)
-                </div>
-                <div className="text-[10px] text-slate-500">
-                  This is a simple echo chat; main intelligence is in tasks.
-                </div>
-              </div>
-              <div className="flex-1 overflow-y-auto px-6 py-3 space-y-2">
-                {messages.length === 0 && (
-                  <div className="text-xs text-slate-500">
-                    Send a message below to log notes or quick prompts for yourself.
+            {/* TAB: LOGS ---------------------------------------------------- */}
+            {activeTab === "logs" && (
+              <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 text-xs">
+                {!selectedTask && (
+                  <div className="text-sm text-slate-500">
+                    Select a task on the left to inspect its logs.
                   </div>
                 )}
-                {messages.map((m, i) => (
-                  <div key={i} className="space-y-1">
-                    <div className="flex justify-end">
-                      <div className="max-w-xs rounded-lg bg-blue-600 text-xs px-3 py-2 text-white">
-                        {m.user}
-                      </div>
-                    </div>
-                    <div className="flex justify-start">
-                      <div className="max-w-xs rounded-lg bg-slate-800 text-xs px-3 py-2 text-slate-100">
-                        {m.assistant}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="border-t border-slate-800 px-4 py-3 flex items-center gap-2">
-                <input
-                  className="flex-1 rounded-md bg-slate-900/70 border border-slate-700 px-3 py-2 text-sm placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  placeholder="Type a note or message..."
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSendMessage();
-                    }
-                  }}
-                />
-                <button
-                  onClick={handleSendMessage}
-                  disabled={!chatInput.trim()}
-                  className="rounded-md bg-slate-800 px-3 py-2 text-xs font-medium text-slate-100 hover:bg-slate-700 disabled:bg-slate-800/60 disabled:text-slate-500 transition"
-                >
-                  Send
-                </button>
-              </div>
-            </section>
-          </div>
-        </main>
-
-        {/* RIGHT – Agent Console + Workspace */}
-        <aside className="w-96 flex flex-col bg-slate-950">
-          {/* Agent Console */}
-          <section className="border-b border-slate-800 h-1/2 flex flex-col">
-            <div className="px-4 py-3 flex items-center justify-between">
-              <div className="text-xs uppercase tracking-wide text-slate-400">
-                Agent Console
-              </div>
-              <div className="text-[10px] text-slate-500">
-                {logsLoading ? "Loading logs..." : selectedTask ? `Task #${selectedTask.id}` : "No task"}
-              </div>
-            </div>
-            <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-2 text-xs">
-              {!selectedTask && (
-                <div className="text-slate-500">
-                  Select a task to view agent logs and step details.
-                </div>
-              )}
-              {selectedTask && !taskLogs && (
-                <div className="text-slate-500">
-                  Logs not loaded yet. Run a step or click the task again.
-                </div>
-              )}
-              {taskLogs && (
-                <>
-                  <div className="text-[11px] uppercase tracking-wide text-slate-500 mb-1">
-                    Task Logs
-                  </div>
-                  <div className="space-y-1 max-h-32 overflow-y-auto border border-slate-800 rounded-md bg-slate-900/60 px-3 py-2">
-                    {taskLogs.task_logs.length === 0 && (
-                      <div className="text-slate-500">No task-level logs yet.</div>
-                    )}
-                    {taskLogs.task_logs.map((log, i) => (
-                      <div key={i} className="text-slate-300">
-                        • {log}
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="text-[11px] uppercase tracking-wide text-slate-500 mt-3 mb-1">
-                    Step Logs
-                  </div>
-                  <div className="space-y-2 max-h-40 overflow-y-auto">
-                    {taskLogs.step_logs.length === 0 && (
-                      <div className="text-slate-500 text-xs">No step logs available.</div>
-                    )}
-                    {taskLogs.step_logs.map((s, i) => (
-                      <div
-                        key={i}
-                        className="border border-slate-800 rounded-md bg-slate-900/60 px-3 py-2 space-y-1"
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2">
-                            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-slate-800 text-[11px] text-slate-300">
-                              {s.step_index + 1}
-                            </span>
-                            <span className={`text-[11px] font-medium ${stepStatusColor(s.status)}`}>
-                              {s.status}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="text-[11px] text-slate-200">{s.description}</div>
-                        {s.error && (
-                          <div className="text-[11px] text-rose-300">Error: {s.error}</div>
-                        )}
-                        {s.logs && s.logs.length > 0 && (
-                          <ul className="mt-1 space-y-1 text-[11px] text-slate-400">
-                            {s.logs.map((log, j) => (
-                              <li key={j}>• {log}</li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          </section>
-
-          {/* Workspace */}
-          <section className="h-1/2 flex flex-col">
-            <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
-              <div className="text-xs uppercase tracking-wide text-slate-400">Workspace</div>
-              <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                <span className="truncate max-w-[120px]">{currentDir || "/"}</span>
-                <button
-                  onClick={goUpDirectory}
-                  className="px-2 py-1 rounded-md border border-slate-700 text-[11px] text-slate-200 hover:bg-slate-800"
-                >
-                  Up
-                </button>
-              </div>
-            </div>
-            <div className="flex-1 grid grid-cols-2">
-              <div className="border-r border-slate-800 overflow-y-auto px-3 py-2 text-xs">
-                {workspaceLoading && (
-                  <div className="text-slate-500 mb-2">Loading workspace...</div>
+                {selectedTask && logsLoading && (
+                  <div className="text-slate-500">Loading logs...</div>
                 )}
-                {workspaceEntries.map((entry) => (
-                  <button
-                    key={entry.name}
-                    className="w-full text-left px-2 py-1 rounded-md hover:bg-slate-800 flex items-center gap-2"
-                    onClick={() =>
-                      entry.type === "directory"
-                        ? loadDirectory(currentDir ? `${currentDir}/${entry.name}` : entry.name)
-                        : openFile(currentDir ? `${currentDir}/${entry.name}` : entry.name)
-                    }
-                  >
-                    <span className="text-[11px] text-slate-400">
-                      {entry.type === "directory" ? "📁" : "📄"}
-                    </span>
-                    <span className="truncate">{entry.name}</span>
-                  </button>
-                ))}
-                {workspaceEntries.length === 0 && !workspaceLoading && (
-                  <div className="text-slate-500">Workspace is empty.</div>
+                {selectedTask && !logsLoading && !taskLogs && (
+                  <div className="text-slate-500">
+                    No logs yet. Run a step to generate some activity.
+                  </div>
                 )}
-              </div>
-              <div className="overflow-y-auto px-3 py-2 text-xs">
-                {selectedFilePath ? (
+                {taskLogs && (
                   <>
-                    <div className="text-[11px] text-slate-400 mb-1">{selectedFilePath}</div>
-                    <pre className="bg-slate-900 rounded-md border border-slate-800 px-3 py-2 text-[11px] whitespace-pre-wrap">
-                      {selectedFileContent}
-                    </pre>
+                    <section>
+                      <div className="text-[11px] uppercase tracking-wide text-slate-500 mb-1">
+                        Task Logs
+                      </div>
+                      <div className="border border-slate-800 rounded-md bg-slate-900/60 px-3 py-2 max-h-40 overflow-y-auto space-y-1">
+                        {taskLogs.task_logs.length === 0 && (
+                          <div className="text-slate-500">No task-level logs yet.</div>
+                        )}
+                        {taskLogs.task_logs.map((log, i) => (
+                          <div key={i} className="text-slate-200">
+                            • {log}
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+
+                    <section>
+                      <div className="text-[11px] uppercase tracking-wide text-slate-500 mb-1">
+                        Step Logs
+                      </div>
+                      <div className="space-y-2">
+                        {taskLogs.step_logs.length === 0 && (
+                          <div className="text-slate-500">No step logs available.</div>
+                        )}
+                        {taskLogs.step_logs.map((s, i) => (
+                          <div
+                            key={i}
+                            className="border border-slate-800 rounded-md bg-slate-900/60 px-3 py-2 space-y-1"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-slate-800 text-[11px] text-slate-300">
+                                {s.step_index + 1}
+                              </span>
+                              <span className={`text-[11px] font-semibold ${stepStatusColor(s.status)}`}>
+                                {s.status}
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-slate-200">{s.description}</div>
+                            {s.error && (
+                              <div className="text-[11px] text-rose-300">Error: {s.error}</div>
+                            )}
+                            {s.logs && s.logs.length > 0 && (
+                              <ul className="mt-1 space-y-1 text-[11px] text-slate-400">
+                                {s.logs.map((log, j) => (
+                                  <li key={j}>• {log}</li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </section>
                   </>
-                ) : (
-                  <div className="text-slate-500 text-xs">
-                    Select a file on the left to preview its contents.
-                  </div>
                 )}
               </div>
-            </div>
-          </section>
-        </aside>
-      </div>
+            )}
+
+            {/* TAB: WORKSPACE ----------------------------------------------- */}
+            {activeTab === "workspace" && (
+              <div className="flex-1 flex flex-col px-6 py-4 gap-3 text-xs">
+                <div className="flex items-center justify-between">
+                  <div className="text-[11px] uppercase tracking-wide text-slate-500">
+                    Workspace
+                  </div>
+                  <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                    <span className="truncate max-w-[160px]">{currentDir || "/"}</span>
+                    <button
+                      onClick={goUpDirectory}
+                      className="px-2 py-1 rounded-md border border-slate-700 hover:bg-slate-800 text-[11px]"
+                    >
+                      Up
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex-1 grid grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] gap-3">
+                  {/* Directory tree */}
+                  <div className="border border-slate-800 rounded-md bg-slate-900/60 overflow-y-auto p-2">
+                    {workspaceLoading && (
+                      <div className="text-slate-500 mb-1">Loading workspace…</div>
+                    )}
+                    {workspaceEntries.map((entry) => (
+                      <button
+                        key={entry.name}
+                        onClick={() =>
+                          entry.type === "directory"
+                            ? loadDirectory(
+                                currentDir ? `${currentDir}/${entry.name}` : entry.name
+                              )
+                            : openFile(
+                                currentDir ? `${currentDir}/${entry.name}` : entry.name
+                              )
+                        }
+                        className="w-full text-left px-2 py-1 rounded-md hover:bg-slate-800 flex items-center gap-2"
+                      >
+                        <span>{entry.type === "directory" ? "📁" : "📄"}</span>
+                        <span className="truncate">{entry.name}</span>
+                      </button>
+                    ))}
+                    {workspaceEntries.length === 0 && !workspaceLoading && (
+                      <div className="text-slate-500">Workspace is empty.</div>
+                    )}
+                  </div>
+
+                  {/* File preview */}
+                  <div className="border border-slate-800 rounded-md bg-slate-900/60 overflow-y-auto p-2">
+                    {selectedFilePath ? (
+                      <>
+                        <div className="text-[11px] text-slate-400 mb-2">
+                          {selectedFilePath}
+                        </div>
+                        <pre className="text-[11px] whitespace-pre-wrap">
+                          {selectedFileContent}
+                        </pre>
+                      </>
+                    ) : (
+                      <div className="text-slate-500">
+                        Select a file on the left to preview its contents.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </main>
     </div>
   );
 };
