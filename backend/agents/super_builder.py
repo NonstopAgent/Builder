@@ -88,10 +88,13 @@ class SuperBuilderAgent:
                 if assistant_reply:
                     step.setdefault("logs", []).append(assistant_reply)
                     step["result"] = assistant_reply
+                    # Also append the reply to the task-level logs
+                    task.setdefault("logs", []).append(assistant_reply)
                 else:
                     fallback = f"Executed step: {step['description']}"
                     step.setdefault("logs", []).append(fallback)
                     step["result"] = fallback
+                    task.setdefault("logs", []).append(fallback)
                 step["status"] = "completed"
                 current_index += 1
                 task["current_step"] = current_index

@@ -49,3 +49,10 @@ export async function sendMessage(sessionId: string, message: string): Promise<a
   );
   return data;
 }
+
+export async function getTaskLogs(sessionId: string, taskId: number): Promise<any> {
+  const { data } = await axios.get(
+    `${API_BASE}/session/${sessionId}/tasks/${taskId}/logs`,
+  );
+  return data;
+}
