@@ -4,6 +4,7 @@ import {
   getSessionState,
   createTask,
   runTask,
+  runTaskAll,
   sendMessage,
   getTaskLogs,
   listWorkspace,
@@ -43,6 +44,7 @@ const App: React.FC = () => {
   const [goalInput, setGoalInput] = useState<string>('');
   const [typeInput, setTypeInput] = useState<string>('build');
   const [loading, setLoading] = useState<boolean>(false);
+  const [runAllLoading, setRunAllLoading] = useState<boolean>(false);
   const [chatInput, setChatInput] = useState<string>('');
   const [messages, setMessages] = useState<MessagePair[]>([]);
   const [taskLogs, setTaskLogs] = useState<{
@@ -119,9 +121,23 @@ const App: React.FC = () => {
   async function handleRunStep(taskId: number) {
     if (!sessionId) return;
     setLoading(true);
-    await runTask(sessionId, taskId);
-    await fetchTasks();
-    setLoading(false);
+    try {
+      await runTask(sessionId, taskId);
+      await fetchTasks();
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleRunAllSteps(taskId: number) {
+    if (!sessionId) return;
+    setRunAllLoading(true);
+    try {
+      await runTaskAll(sessionId, taskId);
+      await fetchTasks();
+    } finally {
+      setRunAllLoading(false);
+    }
   }
 
   async function handleSendChat() {
@@ -210,8 +226,30 @@ const App: React.FC = () => {
                         {step.description}
                       </span>
                       {step.result && (
-                        <div className="text-sm text-gray-600">
-                          Result: {step.result}
+                        <div className="text-sm text-gray-600 mt-1">
+                          {step.description.toLowerCase().startsWith('diff file') ? (
+                            <pre className="bg-gray-100 p-2 overflow-auto text-xs whitespace-pre-wrap">
+                              {step.result.split('\n').map((line, li) => (
+                                <span
+                                  key={li}
+                                  className={
+                                    line.startsWith('+') && !line.startsWith('+++')
+                                      ? 'text-green-600'
+                                      : line.startsWith('-') && !line.startsWith('---')
+                                      ? 'text-red-600'
+                                      : line.startsWith('@@')
+                                      ? 'text-purple-600'
+                                      : 'text-gray-800'
+                                  }
+                                >
+                                  {line}
+                                  {'\n'}
+                                </span>
+                              ))}
+                            </pre>
+                          ) : (
+                            <>Result: {step.result}</>
+                          )}
                         </div>
                       )}
                       {step.logs && step.logs.length > 0 && (
@@ -235,17 +273,38 @@ const App: React.FC = () => {
               ) : (
                 <p>No plan generated yet.</p>
               )}
-              <button
-                onClick={() => handleRunStep(selectedTask.id)}
-                disabled={loading || selectedTask.status === 'completed'}
-                className="mt-3 bg-green-600 text-white px-4 py-2 rounded disabled:bg-gray-400"
-              >
-                {selectedTask.status === 'completed'
-                  ? 'Completed'
-                  : loading
-                  ? 'Running...'
-                  : 'Run Next Step'}
-              </button>
+              <div className="mt-3 flex gap-3 flex-wrap">
+                <button
+                  onClick={() => handleRunStep(selectedTask.id)}
+                  disabled={
+                    loading ||
+                    runAllLoading ||
+                    selectedTask.status === 'completed'
+                  }
+                  className="bg-green-600 text-white px-4 py-2 rounded disabled:bg-gray-400"
+                >
+                  {selectedTask.status === 'completed'
+                    ? 'Completed'
+                    : loading
+                    ? 'Running...'
+                    : 'Run Next Step'}
+                </button>
+                <button
+                  onClick={() => handleRunAllSteps(selectedTask.id)}
+                  disabled={
+                    loading ||
+                    runAllLoading ||
+                    selectedTask.status === 'completed'
+                  }
+                  className="bg-blue-600 text-white px-4 py-2 rounded disabled:bg-gray-400"
+                >
+                  {selectedTask.status === 'completed'
+                    ? 'Completed'
+                    : runAllLoading
+                    ? 'Running All...'
+                    : 'Run All Steps'}
+                </button>
+              </div>
             </div>
             <div className="border-t pt-4">
               <h3 className="font-semibold mb-2">Chat</h3>
