@@ -1,13 +1,13 @@
 [
   {
     "id": 1,
-    "status": "todo",
+    "status": "done",
     "goal": "Bootstrap the repository structure.",
     "notes": "Create folders /backend, /frontend, /workspace, /plans. Initialize tasks.json, README.md, .gitignore. Add package managers etc."
   },
   {
     "id": 2,
-    "status": "todo",
+    "status": "in_progress",
     "goal": "Implement core backend APIs.",
     "notes": "Define FastAPI routes for sessions and messages, integrate task queue persistence, council endpoints, tool actions, worker logic."
   },
