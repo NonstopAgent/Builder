@@ -35,6 +35,14 @@ export async function runTask(sessionId: string, taskId: number): Promise<any> {
   return data;
 }
 
+export async function runTaskAll(sessionId: string, taskId: number): Promise<any> {
+  const { data } = await axios.post(
+    `${API_BASE}/session/${sessionId}/tasks/${taskId}/run_all`,
+    {},
+  );
+  return data;
+}
+
 export async function getTaskPlan(sessionId: string, taskId: number): Promise<any[]> {
   const { data } = await axios.get(
     `${API_BASE}/session/${sessionId}/tasks/${taskId}/plan`,

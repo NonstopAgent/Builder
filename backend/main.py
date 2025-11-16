@@ -110,6 +110,28 @@ async def run_task(session_id: str, task_id: int) -> Dict[str, Any]:
     return updated_task.dict(by_alias=True)
 
 
+@app.post("/session/{session_id}/tasks/{task_id}/run_all")
+async def run_task_all(session_id: str, task_id: int) -> Dict[str, Any]:
+    """Run all remaining steps of the specified task until completion."""
+    tasks: List[Task] = load_tasks()
+    task_obj: Optional[Task] = next((t for t in tasks if int(t.id) == task_id), None)
+    if task_obj is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    agent = get_agent()
+    task_payload = task_obj.dict(by_alias=True)
+    while task_payload.get("status") != "completed":
+        task_payload = agent.execute_task(task_payload)
+
+    updated_task = Task(**task_payload)
+    for idx, existing in enumerate(tasks):
+        if int(existing.id) == task_id:
+            tasks[idx] = updated_task
+            break
+    save_tasks(tasks)
+    return updated_task.dict(by_alias=True)
+
+
 @app.get("/session/{session_id}/tasks/{task_id}", response_model=Task)
 async def get_task(session_id: str, task_id: int) -> Task:
     """Retrieve a task by its unique ID."""
