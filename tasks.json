@@ -1,62 +1,32 @@
 [
   {
     "id": 1,
-    "type": "build",
-    "goal": "Bootstrap the repository structure.",
-    "project_id": null,
     "status": "done",
-    "plan": [],
-    "current_step": 0,
-    "created_at": "2024-01-01T00:00:00Z",
-    "updated_at": "2024-01-02T00:00:00Z",
+    "goal": "Bootstrap the repository structure.",
     "notes": "Create folders /backend, /frontend, /workspace, /plans. Initialize tasks.json, README.md, .gitignore. Add package managers etc."
   },
   {
     "id": 2,
-    "type": "build",
-    "goal": "Implement core backend APIs.",
-    "project_id": null,
     "status": "in_progress",
-    "plan": [],
-    "current_step": 0,
-    "created_at": "2024-01-02T00:00:00Z",
-    "updated_at": "2024-01-03T00:00:00Z",
+    "goal": "Implement core backend APIs.",
     "notes": "Define FastAPI routes for sessions and messages, integrate task queue persistence, council endpoints, tool actions, worker logic."
   },
   {
     "id": 3,
-    "type": "build",
+    "status": "in_progress",
     "goal": "Integrate agent planning and tools.",
-    "project_id": null,
-    "status": "todo",
-    "plan": [],
-    "current_step": 0,
-    "created_at": "2024-01-03T00:00:00Z",
-    "updated_at": "2024-01-03T00:00:00Z",
     "notes": "Wire ChatGPT Agent Mode to backend, call Claude planner, implement file operations and commands, diff summarization and verification."
   },
   {
     "id": 4,
-    "type": "build",
+    "status": "in_progress",
     "goal": "Build the frontend UI.",
-    "project_id": null,
-    "status": "todo",
-    "plan": [],
-    "current_step": 0,
-    "created_at": "2024-01-04T00:00:00Z",
-    "updated_at": "2024-01-04T00:00:00Z",
     "notes": "Create left sidebar, chat panel, right panel with plan/log view; implement file explorer and diff viewer; ensure mobile responsiveness and dark/light mode."
   },
   {
     "id": 5,
-    "type": "build",
-    "goal": "Develop the autonomy engine.",
-    "project_id": null,
     "status": "todo",
-    "plan": [],
-    "current_step": 0,
-    "created_at": "2024-01-05T00:00:00Z",
-    "updated_at": "2024-01-05T00:00:00Z",
+    "goal": "Develop the autonomy engine.",
     "notes": "Implement continuous scheduled runs, task resume logic, checkpoints, health checks, and safe loop execution."
   }
 ]

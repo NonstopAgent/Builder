@@ -1,115 +1,131 @@
 """Implementation of the SuperBuilderAgent.
 
-The SuperBuilderAgent is responsible for executing tasks on behalf of
-the Super Builder system. It provides a simple planning and execution
-loop that updates the task state step by step. For now the
-implementation is intentionally naive – it does not integrate with
-external AI services yet, but it demonstrates the structure and
-flow that such an agent might follow.
+The agent now attempts to call the OpenAI API to generate multi-step
+plans and execute individual steps.  Logs and errors are captured on
+each Step.
 
-Future enhancements should replace the `_create_plan` method with
-calls to a planner model (e.g. Claude or ChatGPT) and should
-augment `execute_task` to perform real work via tool invocations and
-file system operations.
 """
 
 from __future__ import annotations
 
-from typing import Dict, Any, List
+from typing import Any, Dict, List, Optional
 from datetime import datetime
+import os
+import json
+import logging
 
 from ..models import Step
 
+try:
+    import openai  # type: ignore
+except ImportError:
+    openai = None
+
+logger = logging.getLogger(__name__)
+
 
 class SuperBuilderAgent:
-    """A minimal autonomous agent to execute tasks for the Super Builder.
-
-    The agent maintains a simple lifecycle for a task: when first run
-    it generates a plan consisting of a few high-level steps derived
-    from the task goal. Subsequent calls mark each pending step as
-    completed, recording a placeholder result for transparency. When
-    all steps have been executed the task status is updated to
-    ``completed``.
-    """
+    """An autonomous agent to execute tasks for the Super Builder."""
 
     def __init__(self) -> None:
-        # In a more sophisticated implementation, the agent might
-        # maintain internal state or configuration here.
-        pass
+        """Initialize the agent with optional configuration."""
+        self.model_name = os.environ.get("OPENAI_MODEL", "gpt-3.5-turbo")
+
+    def _call_openai(self, prompt: str, max_tokens: int = 256) -> Optional[str]:
+        """Invoke the OpenAI ChatCompletion API with the given prompt."""
+        if openai is None:
+            logger.warning("openai package is not installed; falling back to static planning")
+            return None
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if not api_key:
+            logger.warning("OPENAI_API_KEY environment variable not set; falling back to static planning")
+            return None
+        try:
+            openai.api_key = api_key
+            response = openai.ChatCompletion.create(
+                model=self.model_name,
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant that generates concise plans and execution logs."},
+                    {"role": "user", "content": prompt},
+                ],
+                max_tokens=max_tokens,
+                temperature=0.5,
+                n=1,
+            )
+            content = response.choices[0].message["content"]
+            return content.strip()
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Error calling OpenAI API: %s", exc, exc_info=True)
+            return None
 
     def execute_task(self, task: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute a single step of the provided task.
-
-        This method implements a single-step execution loop. It will
-        generate an initial plan if none exists, then mark the next
-        pending step as completed. A simple placeholder result is
-        recorded for each completed step. Timestamps and task status
-        fields are updated accordingly.
-
-        Parameters
-        ----------
-        task: dict
-            A task dictionary adhering to the schema defined in
-            ``backend.models.Task``. It must contain at least
-            ``goal``, ``plan``, ``current_step`` and ``status`` keys.
-
-        Returns
-        -------
-        dict
-            The updated task dictionary after planning/execution.
-        """
-        # Ensure the plan exists; if empty create a new plan
+        """Execute a single step of the provided task."""
+        # Create a plan if none exists
         if not task.get("plan"):
             plan_descriptions = self._create_plan(task.get("goal", ""))
-            task["plan"] = [Step(description=desc).dict() for desc in plan_descriptions]
+            task["plan"] = [
+                Step(description=desc).dict()
+                for desc in plan_descriptions
+            ]
             task["status"] = "in_progress"
             task["current_step"] = 0
 
-        # Identify the current step index; default to 0 if missing
+        # Identify the current step
         current_index: int = int(task.get("current_step", 0))
 
-        # Process the current step if it exists and is pending
+        # Process the current step if pending
         if current_index < len(task["plan"]):
             step: Dict[str, Any] = task["plan"][current_index]
             if step.get("status") == "pending":
-                # Mark the step as completed and record a placeholder result
+                # Build a prompt describing the step and goal
+                prompt = (
+                    "You are executing the following step as part of a build/planning task.\n"
+                    f"Goal: {task.get('goal', '')}\n"
+                    f"Step: {step['description']}\n\n"
+                    "Please describe what actions you would take to perform this step and summarize the result concisely."
+                )
+                assistant_reply = self._call_openai(prompt, max_tokens=256)
+                if assistant_reply:
+                    step.setdefault("logs", []).append(assistant_reply)
+                    step["result"] = assistant_reply
+                else:
+                    fallback = f"Executed step: {step['description']}"
+                    step.setdefault("logs", []).append(fallback)
+                    step["result"] = fallback
                 step["status"] = "completed"
-                step["result"] = f"Executed step: {step['description']}"
-                # Advance the current step index
                 current_index += 1
                 task["current_step"] = current_index
 
-        # Update overall task status based on remaining pending steps
+        # Update task status
         if current_index >= len(task["plan"]):
             task["status"] = "completed"
         else:
             task["status"] = "in_progress"
 
-        # Update the timestamp fields
         task["updated_at"] = datetime.utcnow().isoformat()
-
         return task
 
     def _create_plan(self, goal: str) -> List[str]:
-        """Generate a simple plan given the task goal.
-
-        The current implementation returns a fixed three-step plan
-        tailored to the provided goal. In the future this method
-        should interface with a dedicated planning model to produce
-        an appropriate sequence of steps.
-
-        Parameters
-        ----------
-        goal: str
-            The overall objective of the task.
-
-        Returns
-        -------
-        list of str
-            A list containing descriptions for each planned step.
-        """
-        # Strip and fall back to generic goal if empty
+        """Generate a multi-step plan for the given task goal."""
         cleaned_goal = goal.strip() or "the task"
+        plan_prompt = (
+            "You are an autonomous software development assistant tasked with "
+            "breaking down high-level goals into concrete, incremental steps.\n"
+            f"Goal: {cleaned_goal}\n"
+            "Provide a JSON array of step descriptions (strings). Each step should "
+            "be actionable and concise. Do not include numbering or any additional commentary."
+        )
+        assistant_reply = self._call_openai(plan_prompt, max_tokens=256)
+        if assistant_reply:
+            try:
+                plan_list = json.loads(assistant_reply)
+                if isinstance(plan_list, list) and all(isinstance(item, str) for item in plan_list):
+                    return plan_list
+            except json.JSONDecodeError:
+                lines = [line.strip("- ").strip() for line in assistant_reply.split("\n") if line.strip()]
+                if lines:
+                    return lines
+        # Fallback to a generic three-step plan
         return [
             f"Analyze the goal: {cleaned_goal}",
             f"Design and implement a solution for: {cleaned_goal}",
@@ -117,6 +133,6 @@ class SuperBuilderAgent:
         ]
 
 
-def get_agent() -> "SuperBuilderAgent":
+def get_agent() -> SuperBuilderAgent:
     """Factory function to obtain a SuperBuilderAgent."""
     return SuperBuilderAgent()
