@@ -31,6 +31,7 @@ from typing import List, Dict, Any, Optional
 from .models import CreateTaskRequest, Task, MessageRequest, MessageResponse
 from .storage import load_tasks, save_tasks
 from .agents import get_agent
+from .utils import file_ops
 
 
 app = FastAPI(title="Super Builder Backend")
@@ -167,3 +168,62 @@ async def get_task_logs(session_id: str, task_id: int) -> Dict[str, Any]:
             "error": step.error,
         })
     return {"task_logs": task_logs, "step_logs": step_logs}
+
+
+# Workspace file management endpoints
+#
+# These endpoints provide read-only access to the files in the workspace
+# directory. They support listing the contents of a directory and reading
+# the contents of a file. All paths are resolved relative to the workspace
+# and attempts to access files outside the workspace will result in errors.
+
+
+@app.get("/workspace/list")
+async def list_workspace(path: str = "") -> Dict[str, Any]:
+    """List files and directories within the workspace at the given path.
+
+    Parameters
+    ----------
+    path: str
+        A relative directory path within the workspace. An empty string
+        refers to the workspace root.
+
+    Returns
+    -------
+    dict
+        A dictionary containing a list of entries with ``name`` and
+        ``type`` keys.
+    """
+    try:
+        entries = file_ops.list_dir(path)
+        return {"entries": entries}
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Directory not found")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get("/workspace/file/{file_path:path}")
+async def read_workspace_file(file_path: str) -> Dict[str, Any]:
+    """Read and return the contents of a file within the workspace.
+
+    The path must be relative to the workspace. This endpoint does not
+    perform any processing or code execution on the file contents.
+
+    Parameters
+    ----------
+    file_path: str
+        A relative file path within the workspace.
+
+    Returns
+    -------
+    dict
+        A dictionary containing the file path and its contents.
+    """
+    try:
+        content = file_ops.read_file(file_path)
+        return {"path": file_path, "content": content}
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="File not found")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
