@@ -1,18 +1,15 @@
 """Pydantic models for the Super Builder backend.
 
 These models define the schema for tasks and steps as exposed by the
-REST API. The use of Pydantic ensures validation and convenient
-serialization/deserialization of the objects.
+REST API.  They now support capturing logs, errors, and metadata
+generated during execution.
 
-The models here intentionally mirror the data persisted to
-``tasks.json`` so that tasks loaded from disk can be passed directly
-into API responses or the agent.
 """
 
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -32,6 +29,20 @@ class Step(BaseModel):
     status: str = Field(default="pending", description="The step status: pending or completed")
     result: Optional[str] = Field(default=None, description="Optional result of the step execution")
 
+    # New fields for richer context
+    logs: List[str] = Field(
+        default_factory=list,
+        description="Ordered list of log messages generated during step execution",
+    )
+    error: Optional[str] = Field(
+        default=None,
+        description="Error message if step execution fails or encounters an exception",
+    )
+    metadata: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Optional metadata associated with the step (e.g. file paths, diff summaries)",
+    )
+
 
 class Task(BaseModel):
     """Represents a task managed by the backend."""
@@ -45,6 +56,16 @@ class Task(BaseModel):
     current_step: int = Field(default=0, description="Index of the current step in the plan")
     created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat(), description="ISO timestamp when the task was created")
     updated_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat(), description="ISO timestamp when the task was last updated")
+
+    # New fields to capture task-level logs and errors
+    logs: List[str] = Field(
+        default_factory=list,
+        description="High-level logs for the task, such as planner outputs and summaries",
+    )
+    error: Optional[str] = Field(
+        default=None,
+        description="Error message if the task fails during execution",
+    )
 
     class Config:
         allow_population_by_field_name = True
