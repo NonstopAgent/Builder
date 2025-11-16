@@ -1,25 +1,23 @@
-# backend/models.py
-from typing import List, Optional
 from pydantic import BaseModel, Field
-from datetime import datetime
-
-class CreateTaskRequest(BaseModel):
-    type: str
-    goal: str
-    project_id: Optional[str] = None
-
-class Step(BaseModel):
-    description: str
-    status: str = "pending"
-    result: Optional[str] = None
+from typing import List, Optional, Dict
 
 class Task(BaseModel):
     id: int
-    type: str = Field(..., alias="type")
+    status: str
     goal: str
-    project_id: Optional[str] = None
-    status: str = "queued"
-    plan: List[Step] = []
+    notes: Optional[str] = None
+    plan: Optional[List[Dict]] = None
     current_step: int = 0
-    created_at: str = datetime.utcnow().isoformat()
-    updated_at: str = datetime.utcnow().isoformat()
+
+class CreateTaskRequest(BaseModel):
+    goal: str = Field(..., description="High level goal for the task")
+    notes: Optional[str] = Field(None, description="Additional notes or requirements")
+
+class MessageRequest(BaseModel):
+    session_id: str
+    message: str
+
+class MessageResponse(BaseModel):
+    session_id: str
+    message: str
+    response: str
