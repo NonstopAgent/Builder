@@ -2,31 +2,50 @@
   {
     "id": 1,
     "status": "todo",
-    "goal": "Bootstrap the repository structure.",
-    "notes": "Create folders /backend, /frontend, /workspace, /plans. Initialize tasks.json, README.md, .gitignore. Add package managers etc."
+    "goal": "Bootstrap repository structure",
+    "notes": [
+      "Create backend, frontend, workspace, and plans directories",
+      "Add .gitignore and README",
+      "Initialize tasks.json with starting tasks"
+    ]
   },
   {
     "id": 2,
     "status": "todo",
-    "goal": "Implement core backend APIs.",
-    "notes": "Define FastAPI routes for sessions and messages, integrate task queue persistence, council endpoints, tool actions, worker logic."
+    "goal": "Implement backend API for sessions",
+    "notes": [
+      "Implement POST /api/session",
+      "Implement POST /api/session/:id/message",
+      "Implement GET /api/session/:id/state"
+    ]
   },
   {
     "id": 3,
     "status": "todo",
-    "goal": "Integrate agent planning and tools.",
-    "notes": "Wire ChatGPT Agent Mode to backend, call Claude planner, implement file operations and commands, diff summarization and verification."
+    "goal": "Implement council integration and tools",
+    "notes": [
+      "Define tool endpoints such as list_files, read_file, write_file, run_command, call_claude_planner",
+      "Implement logic to call Claude for planning and persist returned plans"
+    ]
   },
   {
     "id": 4,
     "status": "todo",
-    "goal": "Build the frontend UI.",
-    "notes": "Create left sidebar, chat panel, right panel with plan/log view; implement file explorer and diff viewer; ensure mobile responsiveness and dark/light mode."
+    "goal": "Build frontend layout",
+    "notes": [
+      "Implement left sidebar for sessions and projects",
+      "Implement chat view with streaming messages and commands",
+      "Implement right panel displaying plan, steps, repo tree, file previews, logs, and task history"
+    ]
   },
   {
     "id": 5,
     "status": "todo",
-    "goal": "Develop the autonomy engine.",
-    "notes": "Implement continuous scheduled runs, task resume logic, checkpoints, health checks, and safe loop execution."
+    "goal": "Implement autonomy engine",
+    "notes": [
+      "Create scheduler to run tasks overnight",
+      "Persist and resume worker state",
+      "Implement progress checkpoints and health checks"
+    ]
   }
 ]

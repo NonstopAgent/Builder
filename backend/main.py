@@ -1,86 +1,89 @@
-# backend/main.py
-from fastapi import FastAPI, HTTPException, Depends
-from fastapi.middleware.cors import CORSMiddleware
-from uuid import uuid4
-from .models import CreateTaskRequest, Task, Step
-from .storage import load_tasks, save_tasks
-from .agents.super_builder import get_agent
-from typing import List, Dict, Any, Optional
+"""FastAPI backend for the Super Builder platform.
 
-app = FastAPI(title="Super Builder Backend")
+This module exposes minimal API endpoints for creating sessions,
+posting messages and reading session state.  Plans, tools and
+autonomy engine will be implemented in later tasks.
+"""
 
-# Allow all origins for simplicity (adjust in production)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+from __future__ import annotations
+
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from pathlib import Path
+from typing import List, Optional
+import json
+
+app = FastAPI(title="Super Builder Backend", version="0.1.0")
+
+# Path to the tasks.json file relative to this file
+TASKS_PATH = Path(__file__).resolve().parents[1] / "tasks.json"
+
+
+class SessionCreate(BaseModel):
+    goal: str
+    project_id: Optional[str] = None
+
+
+def read_tasks() -> List[dict]:
+    """Read the task list from the tasks.json file.
+
+    Returns an empty list if the file does not exist.
+    """
+    if not TASKS_PATH.exists():
+        return []
+    with open(TASKS_PATH, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def write_tasks(tasks: List[dict]) -> None:
+    """Write the task list back to the tasks.json file."""
+    with open(TASKS_PATH, "w", encoding="utf-8") as f:
+        json.dump(tasks, f, indent=2)
+
 
 @app.post("/api/session")
-def create_session() -> Dict[str, str]:
-    """
-    Create a new session. Returns a UUID.
-    """
-    session_id = str(uuid4())
-    return {"session_id": session_id}
+def create_session(request: SessionCreate) -> dict:
+    """Create a new build session.
 
-@app.get("/api/session/{session_id}")
-def get_session_state(session_id: str) -> Dict[str, Any]:
+    A session corresponds to a top‑level task in tasks.json.  The goal
+    and optional project_id from the request are used to populate the
+    new task.  The id is derived by incrementing the maximum existing
+    task id.
     """
-    Return the current task list for the given session.
-    """
-    tasks: List[Dict[str, Any]] = load_tasks()
-    return {"tasks": tasks}
+    tasks = read_tasks()
+    new_id = max((task.get("id", 0) for task in tasks), default=0) + 1
+    task = {
+        "id": new_id,
+        "status": "todo",
+        "goal": request.goal,
+        "project_id": request.project_id,
+        "notes": [],
+    }
+    tasks.append(task)
+    write_tasks(tasks)
+    return {"session_id": new_id}
 
-@app.post("/api/session/{session_id}/tasks", response_model=Task)
-def create_task(session_id: str, req: CreateTaskRequest) -> Task:
-    """
-    Create a new task and add it to the tasks list.
-    """
-    tasks: List[Dict[str, Any]] = load_tasks()
-    new_id = max([task["id"] for task in tasks], default=0) + 1
-    new_task = Task(
-        id=new_id,
-        type=req.type,
-        goal=req.goal,
-        project_id=req.project_id,
-        status="queued",
-        plan=[],
-        current_step=0,
-    ).dict(by_alias=True)
-    tasks.append(new_task)
-    save_tasks(tasks)
-    return new_task
 
-@app.post("/api/session/{session_id}/tasks/{task_id}/run")
-def run_task(session_id: str, task_id: int):
-    """
-    Run one step of the specified task using the autonomous agent.
-    """
-    tasks: List[Dict[str, Any]] = load_tasks()
-    task_data: Optional[Dict[str, Any]] = next((t for t in tasks if t["id"] == task_id), None)
-    if task_data is None:
-        raise HTTPException(status_code=404, detail="Task not found")
-    agent = get_agent()
-    # Perform a single-step execution for safety.
-    updated_task = agent.execute_task(task_data)
-    # Update tasks list
-    for i, t in enumerate(tasks):
-        if t["id"] == task_id:
-            tasks[i] = updated_task
-            break
-    save_tasks(tasks)
-    return updated_task
+@app.post("/api/session/{session_id}/message")
+def post_message(session_id: int, message: dict) -> dict:
+    """Handle a message for a session.
 
-@app.get("/api/session/{session_id}/tasks/{task_id}", response_model=Task)
-def get_task(session_id: str, task_id: int) -> Task:
+    Placeholder implementation. In later phases, this endpoint will
+    forward messages to the agent, record them in logs and return
+    streaming responses.
     """
-    Return a specific task by ID.
+    # Future implementation will interact with the agent runtime
+    return {"acknowledged": True}
+
+
+@app.get("/api/session/{session_id}/state")
+def get_state(session_id: int) -> dict:
+    """Retrieve the state for a given session.
+
+    Returns the task dictionary if found; otherwise raises a 404.
     """
-    tasks: List[Dict[str, Any]] = load_tasks()
-    task = next((t for t in tasks if t["id"] == task_id), None)
-    if task is None:
-        raise HTTPException(status_code=404, detail="Task not found")
-    return Task(**task)
+    tasks = read_tasks()
+    for task in tasks:
+        if task.get("id") == session_id:
+            return task
+    raise HTTPException(status_code=404, detail="Session not found")

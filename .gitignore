@@ -1,17 +1,15 @@
-# Python
-__pycache__/
+# Python virtual environments and bytecode
 venv/
+__pycache__/
 *.pyc
 
-# Environment files
-.env
-
-# Node
+# Node dependencies and build outputs
 node_modules/
 dist/
+build/
 
-# Mac OS
+# OS-specific files
 .DS_Store
 
-# Logs
-*.log
+# Environment variables
+.env
