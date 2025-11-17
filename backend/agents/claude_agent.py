@@ -1,11 +1,14 @@
-import os
+import importlib
 import logging
+import os
+import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-try:
-    import anthropic
-except ImportError:  # Fallback if the package is not installed
+anthropic_spec = importlib.util.find_spec("anthropic")
+if anthropic_spec:
+    anthropic = importlib.import_module("anthropic")
+else:
     anthropic = None  # type: ignore
 
 logger = logging.getLogger(__name__)
@@ -22,7 +25,7 @@ class ClaudeAgent:
     This agent:
 
     - Generates multi-step plans for a given goal
-    - Executes one step at a time
+    - Executes one step at a time with real file operations
     - Logs activity on both the task and the step
     - Can fall back to static planning when the Anthropic client is unavailable
     """
@@ -64,11 +67,9 @@ class ClaudeAgent:
                 system=system_prompt,
                 messages=[{"role": "user", "content": user_prompt}],
             )
-            # Anthropic responses have `content` as a list of blocks; use first text block
             for block in response.content:
                 if getattr(block, "type", None) == "text":
                     return block.text
-            # Fallback: string representation
             return str(response)
         except Exception as exc:  # pragma: no cover - defensive
             logger.warning("Claude API call failed: %s", exc)
@@ -85,9 +86,7 @@ class ClaudeAgent:
         lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
         steps: List[str] = []
         for ln in lines:
-            # Strip leading bullets like "1.", "-", "*", etc.
             if ln[0].isdigit():
-                # e.g. "1. Do X"
                 parts = ln.split(".", 1)
                 if len(parts) == 2 and parts[1].strip():
                     steps.append(parts[1].strip())
@@ -95,7 +94,6 @@ class ClaudeAgent:
             if ln.startswith(("-", "*", "•")):
                 steps.append(ln.lstrip("-*• ").strip())
                 continue
-            # Fallback: treat as a step if we don't have many yet
             if len(steps) < 8:
                 steps.append(ln)
         return steps
@@ -121,16 +119,18 @@ class ClaudeAgent:
             "You are a senior software engineer and project planner. "
             "Given a single development goal, break it into 3–7 concrete, "
             "sequential steps that a coding agent could execute. "
-            "Each step should be short, action-focused, and specific."
+            "Each step should be short, action-focused, and specific. "
+            "Format each step clearly with actions like: create file, write code, test, etc."
         )
         user_prompt = (
             "Goal:\n"
             f"{goal}\n\n"
             "Respond ONLY with a list of steps, one per line. "
-            "You may use bullet points or numbered steps."
+            "You may use bullet points or numbered steps. "
+            "Be specific about file operations."
         )
 
-        text = self._call_claude(system_prompt, user_prompt)
+        text = self._call_claude(system_prompt, user_prompt, max_tokens=1200)
         if not text:
             logger.info("Claude unavailable, using static plan")
             return self._static_plan(goal)
@@ -140,6 +140,117 @@ class ClaudeAgent:
             logger.info("Claude returned no parseable steps, using static plan")
             return self._static_plan(goal)
         return steps
+
+    # ------------------------------------------------------------------ #
+    # Step execution with real tools
+    # ------------------------------------------------------------------ #
+
+    def _execute_step_with_tools(self, step: Dict[str, Any], task_goal: str) -> Dict[str, Any]:
+        """
+        Execute a step using real file operations and tools.
+        """
+        from backend.utils.file_ops import list_dir, read_file, write_file
+
+        description = step.get("description", "").lower()
+        step_logs = step.get("logs", [])
+
+        if "create" in description and "file" in description:
+            system_prompt = (
+                "You are a code generation assistant. Generate clean, well-documented code "
+                "based on the step description and overall goal."
+            )
+            user_prompt = (
+                f"Overall Goal: {task_goal}\n\n"
+                f"Current Step: {step['description']}\n\n"
+                "Generate the complete file content. Include all necessary code, "
+                "imports, and documentation. Respond ONLY with the file content, "
+                "no explanations or markdown formatting."
+            )
+
+            content = self._call_claude(system_prompt, user_prompt, max_tokens=4000)
+
+            if content:
+                filename = self._extract_filename(step["description"])
+                if filename:
+                    try:
+                        write_file(filename, content)
+                        step_logs.append(f"Created file: {filename}")
+                        step["result"] = f"Successfully created {filename}"
+                        step["metadata"] = {"filename": filename, "size": len(content)}
+                    except Exception as exc:
+                        step["error"] = f"Failed to create file: {exc}"
+                        step_logs.append(f"Error: {exc}")
+                else:
+                    step["result"] = "Generated content but couldn't determine filename"
+                    step_logs.append("Warning: Could not extract filename from step description")
+            else:
+                step["result"] = "Could not generate file content (Claude unavailable)"
+                step_logs.append("Warning: File generation skipped")
+
+        elif "read" in description and "file" in description:
+            filename = self._extract_filename(step["description"])
+            if filename:
+                try:
+                    content = read_file(filename)
+                    step["result"] = f"Read {len(content)} characters from {filename}"
+                    step_logs.append(f"Successfully read {filename}")
+                    step["metadata"] = {"filename": filename, "content_preview": content[:200]}
+                except Exception as exc:
+                    step["error"] = f"Failed to read file: {exc}"
+                    step_logs.append(f"Error: {exc}")
+            else:
+                step["result"] = "Could not determine which file to read"
+                step_logs.append("Warning: Filename not found in description")
+
+        elif "list" in description or "explore" in description:
+            try:
+                entries = list_dir("")
+                step["result"] = f"Found {len(entries)} items in workspace"
+                step_logs.append(f"Listed workspace: {len(entries)} items")
+                step["metadata"] = {"entries": [e["name"] for e in entries[:10]]}
+            except Exception as exc:
+                step["error"] = f"Failed to list directory: {exc}"
+                step_logs.append(f"Error: {exc}")
+
+        else:
+            system_prompt = "You are a software development assistant executing a step in a larger task."
+            user_prompt = (
+                f"Overall Goal: {task_goal}\n\n"
+                f"Current Step: {step['description']}\n\n"
+                "Describe what should be done for this step and what the expected outcome is. "
+                "Be specific and actionable. Keep it under 200 words."
+            )
+
+            guidance = self._call_claude(system_prompt, user_prompt, max_tokens=400)
+            if guidance:
+                step["result"] = guidance
+                step_logs.append(f"Step guidance: {guidance[:100]}...")
+            else:
+                step["result"] = f"Completed step: {step['description']}"
+                step_logs.append("Step completed (no specific actions)")
+
+        step["logs"] = step_logs
+        step["updated_at"] = _now_iso()
+
+        return step
+
+    def _extract_filename(self, text: str) -> Optional[str]:
+        """
+        Try to extract a filename from step description.
+        """
+        patterns = [
+            r"create\s+(?:file\s+)?[\"']?([a-zA-Z0-9_\-./]+\.[a-z]+)[\"']?",
+            r"file\s+[\"']?([a-zA-Z0-9_\-./]+\.[a-z]+)[\"']?",
+            r"[\"']([a-zA-Z0-9_\-./]+\.[a-z]+)[\"']",
+            r"(\w+\.(py|js|ts|tsx|jsx|html|css|json|md|txt))",
+        ]
+
+        for pattern in patterns:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                return match.group(1)
+
+        return None
 
     # ------------------------------------------------------------------ #
     # Task execution
@@ -153,32 +264,30 @@ class ClaudeAgent:
 
         Behavior:
         - If there is no plan yet, generate one and mark task as in_progress.
-        - Otherwise, complete the current step:
+        - Otherwise, complete the current step with real tool execution:
           * mark step as 'completed'
           * append logs
           * advance current_step index
           * mark task 'completed' when all steps are done.
         """
-        task = dict(task_dict)  # shallow copy to avoid surprises
+        task = dict(task_dict)
         task.setdefault("logs", [])
         task.setdefault("status", "queued")
         task.setdefault("plan", [])
         task.setdefault("current_step", None)
 
-        # Normalize timestamps
         if not task.get("created_at"):
             task["created_at"] = _now_iso()
         task["updated_at"] = _now_iso()
 
         plan: List[Dict[str, Any]] = task.get("plan") or []
 
-        # Case 1: no plan yet -> create with Claude
         if not plan:
             goal = task.get("goal") or ""
             descriptions = self._create_plan(goal)
 
             steps: List[Dict[str, Any]] = []
-            for idx, desc in enumerate(descriptions):
+            for desc in descriptions:
                 steps.append(
                     {
                         "description": desc,
@@ -197,10 +306,8 @@ class ClaudeAgent:
             task["logs"].append(f"[{_now_iso()}] Plan created with {len(steps)} steps by ClaudeAgent.")
             return task
 
-        # Case 2: we have a plan -> advance one step
         current_idx = task.get("current_step")
         if current_idx is None:
-            # No active step but plan exists; treat as already finished
             task["status"] = "completed"
             task["logs"].append(f"[{_now_iso()}] Task marked completed; no active step.")
             return task
@@ -208,27 +315,18 @@ class ClaudeAgent:
         if current_idx < 0 or current_idx >= len(plan):
             task["status"] = "completed"
             task["current_step"] = None
-            task["logs"].append(
-                f"[{_now_iso()}] current_step index out of range; forcing task to completed."
-            )
+            task["logs"].append(f"[{_now_iso()}] current_step index out of range; forcing task to completed.")
             return task
 
         step = plan[current_idx]
-        step_logs: List[str] = step.get("logs") or []
-        step_status = step.get("status", "pending")
+        step = self._execute_step_with_tools(step, task.get("goal", ""))
 
-        # Mark this step as completed (for now, we don't call tools)
-        step_status = "completed"
-        step["status"] = step_status
+        step["status"] = "completed"
         step["updated_at"] = _now_iso()
-        completion_msg = f"[{_now_iso()}] Completed step {current_idx + 1}: {step.get('description', '')}"
-        step_logs.append(completion_msg)
-        step["logs"] = step_logs
 
-        # Record at task level as well
+        completion_msg = f"[{_now_iso()}] Completed step {current_idx + 1}: {step.get('description', '')}"
         task["logs"].append(completion_msg)
 
-        # Advance to next step or mark task as completed
         if current_idx + 1 < len(plan):
             task["current_step"] = current_idx + 1
             task["status"] = "in_progress"
