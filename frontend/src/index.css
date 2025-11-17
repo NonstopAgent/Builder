@@ -1,11 +1,82 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-html,
-body,
-#root {
-  height: 100%;
+:root {
+  color-scheme: dark;
 }
 
-/* Custom styles for the Super Builder frontend can be added here. */
+body {
+  margin: 0;
+  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: radial-gradient(circle at 20% 20%, rgba(109, 211, 255, 0.08), transparent 25%),
+    radial-gradient(circle at 80% 0%, rgba(140, 82, 255, 0.08), transparent 30%),
+    #0b1220;
+  min-height: 100vh;
+}
+
+.glass {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(12px);
+}
+
+.gradient-border {
+  position: relative;
+}
+
+.gradient-border:before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  background: linear-gradient(120deg, rgba(109, 211, 255, 0.45), rgba(140, 82, 255, 0.35));
+  z-index: -1;
+  border-radius: 14px;
+  opacity: 0.8;
+}
+
+.neon-text {
+  text-shadow: 0 0 18px rgba(109, 211, 255, 0.35);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.8);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.6);
+  border-radius: 9999px;
+  border: 2px solid rgba(15, 23, 42, 0.8);
+}
+
+/* Split pane styling */
+.split-pane, .SplitPane {
+  position: relative !important;
+}
+
+.Pane {
+  overflow: hidden;
+}
+
+.Resizer {
+  background: rgba(255, 255, 255, 0.05);
+  z-index: 10;
+}
+
+.Resizer.horizontal {
+  height: 8px;
+  margin: -4px 0;
+  cursor: row-resize;
+}
+
+.Resizer.vertical {
+  width: 8px;
+  margin: 0 -4px;
+  cursor: col-resize;
+}

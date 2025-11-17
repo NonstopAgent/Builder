@@ -1,0 +1,50 @@
+export type TaskType = "build" | "plan" | "modify";
+
+export type TaskStatus = "pending" | "in_progress" | "completed" | "failed";
+
+export interface Step {
+  id: string;
+  title: string;
+  description: string;
+  status: TaskStatus;
+  logs?: string[];
+  error?: string | null;
+}
+
+export interface Task {
+  id: string;
+  goal: string;
+  type: TaskType;
+  status: TaskStatus;
+  steps: Step[];
+  createdAt: string;
+}
+
+export interface FileEntry {
+  name: string;
+  path: string;
+  type: "file" | "directory";
+  size?: number;
+  updatedAt?: string;
+}
+
+export interface FileContent {
+  path: string;
+  content: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  timestamp: string;
+}
+
+export interface Tab {
+  id: string;
+  path: string;
+  label: string;
+  language?: string;
+  content: string;
+  isDirty?: boolean;
+}
