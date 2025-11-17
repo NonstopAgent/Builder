@@ -4,6 +4,7 @@ import { Step, Task, TaskType } from "../types";
 export interface CreateTaskPayload {
   goal: string;
   type: TaskType;
+  projectId?: string | null;
 }
 
 export const fetchTasks = async (): Promise<Task[]> => {
@@ -16,20 +17,26 @@ export const createTask = async (payload: CreateTaskPayload): Promise<Task> => {
   return response.data;
 };
 
-export const runTask = async (taskId: string): Promise<void> => {
-  await apiClient.post(`/tasks/${taskId}/run`);
+export const runTaskStep = async (taskId: string | number): Promise<Task> => {
+  const response = await apiClient.post<Task>(`/tasks/${taskId}/run`);
+  return response.data;
+};
+
+export const runTaskToCompletion = async (taskId: string | number): Promise<Task> => {
+  const response = await apiClient.post<Task>(`/tasks/${taskId}/run-all`);
+  return response.data;
 };
 
 export const runAllTasks = async (): Promise<void> => {
   await apiClient.post(`/tasks/run-all`);
 };
 
-export const fetchTaskSteps = async (taskId: string): Promise<Step[]> => {
-  const response = await apiClient.get<Step[]>(`/tasks/${taskId}/steps`);
-  return response.data;
+export const fetchTaskSteps = async (taskId: string | number): Promise<Step[]> => {
+  const response = await apiClient.get<{ steps: Step[] }>(`/tasks/${taskId}/steps`);
+  return response.data.steps;
 };
 
-export const fetchTaskLogs = async (taskId: string): Promise<string[]> => {
+export const fetchTaskLogs = async (taskId: string | number): Promise<string[]> => {
   const response = await apiClient.get<string[]>(`/tasks/${taskId}/logs`);
   return response.data;
 };

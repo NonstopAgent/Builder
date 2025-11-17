@@ -1,20 +1,20 @@
 import os
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.models import (
     CreateTaskRequest,
-    Task,
     MessageRequest,
     MessageResponse,
+    Task,
 )
 from backend.storage import load_tasks, save_tasks, upsert_task
 from backend.agents.super_builder import get_agent as get_super_builder_agent
 from backend.agents.claude_agent import get_agent as get_claude_agent
-from backend.utils.file_ops import list_dir, read_file, WORKSPACE_DIR
+from backend.utils.file_ops import WORKSPACE_DIR, list_dir, read_file
 
 APP_VERSION = "0.2.0"
 
@@ -139,7 +139,127 @@ def get_session_state(session_id: str) -> Dict[str, Any]:
 
 
 # --------------------------------------------------------------------------- #
-# Tasks
+# Direct Task Endpoints (for frontend compatibility)
+# --------------------------------------------------------------------------- #
+
+
+@app.get("/tasks", response_model=List[Task])
+def list_all_tasks() -> List[Task]:
+    """
+    Get all tasks across all sessions.
+    """
+    return load_tasks()
+
+
+@app.post("/tasks", response_model=Task)
+def create_task_direct(request: CreateTaskRequest) -> Task:
+    """
+    Create a new task without requiring a session.
+    """
+    tasks = load_tasks()
+    next_id = max((t.id for t in tasks), default=0) + 1
+
+    task = Task(
+        id=next_id,
+        type=request.type,
+        goal=request.goal,
+        project_id=request.project_id,
+        status="queued",
+        plan=[],
+        logs=["Task created."],
+    )
+    tasks.append(task)
+    save_tasks(tasks)
+    return task
+
+
+@app.get("/tasks/{task_id}", response_model=Task)
+def get_task_direct(task_id: int) -> Task:
+    """
+    Get a specific task by ID.
+    """
+    return _find_task(task_id)
+
+
+@app.post("/tasks/{task_id}/run", response_model=Task)
+def run_task_direct(task_id: int) -> Task:
+    """
+    Run a single planning/execution step on the task using the selected agent.
+    """
+    task = _find_task(task_id)
+    agent = _get_agent()
+
+    task_payload = task.dict(by_alias=True)
+    updated_payload = agent.execute_task(task_payload)  # type: ignore[arg-type]
+    updated_task = Task(**updated_payload)
+    return _update_and_save_task(updated_task)
+
+
+@app.post("/tasks/{task_id}/run-all", response_model=Task)
+def run_task_all_direct(task_id: int) -> Task:
+    """
+    Run the task until completion, calling the agent in a loop.
+    """
+    task = _find_task(task_id)
+    agent = _get_agent()
+
+    task_payload = task.dict(by_alias=True)
+    while task_payload.get("status") not in ("completed", "failed"):
+        task_payload = agent.execute_task(task_payload)  # type: ignore[arg-type]
+    updated_task = Task(**task_payload)
+    return _update_and_save_task(updated_task)
+
+
+@app.post("/tasks/run-all")
+def run_all_tasks() -> Dict[str, Any]:
+    """
+    Run all pending tasks.
+    """
+    tasks = load_tasks()
+    agent = _get_agent()
+    completed = 0
+
+    for task in tasks:
+        if task.status in ("queued", "in_progress"):
+            task_payload = task.dict(by_alias=True)
+            while task_payload.get("status") not in ("completed", "failed"):
+                task_payload = agent.execute_task(task_payload)  # type: ignore[arg-type]
+            updated_task = Task(**task_payload)
+            _update_and_save_task(updated_task)
+            completed += 1
+
+    return {"message": f"Processed {completed} tasks", "total": len(tasks)}
+
+
+@app.get("/tasks/{task_id}/steps")
+def get_task_steps_direct(task_id: int) -> Dict[str, Any]:
+    """
+    Get the steps/plan for a specific task.
+    """
+    task = _find_task(task_id)
+    return {"task_id": task.id, "steps": [step.dict() for step in task.plan]}
+
+
+@app.get("/tasks/{task_id}/logs")
+def get_task_logs_direct(task_id: int) -> List[str]:
+    """
+    Get logs for a specific task.
+    """
+    task = _find_task(task_id)
+
+    # Combine task logs and step logs
+    all_logs = list(task.logs)
+    for idx, step in enumerate(task.plan):
+        all_logs.append(f"\n--- Step {idx + 1}: {step.description} ---")
+        all_logs.extend(step.logs)
+        if step.error:
+            all_logs.append(f"ERROR: {step.error}")
+
+    return all_logs
+
+
+# --------------------------------------------------------------------------- #
+# Session-based Task Endpoints (legacy support)
 # --------------------------------------------------------------------------- #
 
 
@@ -286,3 +406,64 @@ def read_workspace_file(file_path: str) -> Dict[str, Any]:
         raise HTTPException(status_code=400, detail=str(exc))
 
     return {"path": file_path, "content": content}
+
+
+# --------------------------------------------------------------------------- #
+# File API endpoints (for frontend file operations)
+# --------------------------------------------------------------------------- #
+
+
+@app.get("/files")
+def list_files(path: str = Query("", description="Relative path inside workspace")) -> List[Dict[str, Any]]:
+    """
+    List files in workspace directory.
+    """
+    try:
+        entries = list_dir(path)
+        return [
+            {
+                "name": e["name"],
+                "type": e["type"],
+                "path": f"{path}/{e['name']}" if path else e["name"],
+            }
+            for e in entries
+        ]
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Directory not found")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get("/files/content")
+def read_file_content(path: str = Query(..., description="File path")) -> Dict[str, str]:
+    """
+    Read file content from workspace.
+    """
+    try:
+        content = read_file(path)
+        return {"path": path, "content": content}
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="File not found")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/files/content")
+def write_file_content(payload: Dict[str, str]) -> Dict[str, str]:
+    """
+    Write file content to workspace.
+    """
+    from backend.utils.file_ops import write_file
+
+    path = payload.get("path")
+    content = payload.get("content")
+
+    if not path or content is None:
+        raise HTTPException(status_code=400, detail="Missing path or content")
+
+    try:
+        write_file(path, content)
+        return {"path": path, "content": content}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
