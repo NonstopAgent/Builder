@@ -9,14 +9,25 @@
     "test": "vitest"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.0.0",
+    "axios": "^1.7.7",
+    "clsx": "^2.0.0",
+    "framer-motion": "^10.16.0",
+    "lucide-react": "^0.290.0",
+    "prismjs": "^1.29.0",
     "react": "18.3.1",
     "react-dom": "18.3.1",
-    "axios": "^1.7.7"
+    "react-simple-code-editor": "^0.12.3",
+    "react-split-pane": "^0.1.92",
+    "zustand": "^4.4.0"
   },
   "devDependencies": {
     "@types/react": "18.3.4",
     "@types/react-dom": "18.3.0",
-    "@vitejs/plugin-react-swc": "^3.7.0",
+    "@vitejs/plugin-react": "^4.2.0",
+    "autoprefixer": "^10.4.0",
+    "postcss": "^8.4.0",
+    "tailwindcss": "^3.4.0",
     "typescript": "^5.6.2",
     "vite": "^5.4.0",
     "vitest": "^2.0.5"
