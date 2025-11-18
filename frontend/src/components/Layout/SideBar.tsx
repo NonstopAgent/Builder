@@ -9,6 +9,7 @@ interface SideBarProps {
   onCreate: (goal: string, type: TaskType) => void;
   onSelect: (taskId: string) => void;
   isLoading?: boolean;
+  onStartEnhancedWorkflow: (goal: string) => void;
 }
 
 const statusBadge = (status: TaskStatus) => {
@@ -24,11 +25,12 @@ const statusBadge = (status: TaskStatus) => {
   }
 };
 
-const SideBar = ({ tasks, onCreate, onSelect, isLoading }: SideBarProps) => {
+const SideBar = ({ tasks, onCreate, onSelect, isLoading, onStartEnhancedWorkflow }: SideBarProps) => {
   const { selectedTaskId } = useUIStore();
   const [goal, setGoal] = useState("Build a landing page for our AI product");
   const [type, setType] = useState<TaskType>("build");
   const [search, setSearch] = useState("");
+  const [showPremiumMode, setShowPremiumMode] = useState(false);
 
   const filteredTasks = useMemo(
     () => tasks.filter((task) => task.goal.toLowerCase().includes(search.toLowerCase())),
@@ -38,18 +40,49 @@ const SideBar = ({ tasks, onCreate, onSelect, isLoading }: SideBarProps) => {
   return (
     <div className="h-full space-y-4 rounded-xl glass p-3">
       <div className="rounded-lg border border-slate-800/70 bg-gradient-to-br from-slate-900/80 to-slate-950/80 p-3">
-        <div className="flex items-center gap-2 text-slate-300">
-          <Sparkles size={16} className="text-neon" />
-          <div>
-            <p className="text-xs text-slate-400">Task Builder</p>
-            <p className="text-sm font-semibold">Create a new goal</p>
+        <div className="flex items-center justify-between text-slate-300">
+          <div className="flex items-center gap-2">
+            <Sparkles size={16} className="text-neon" />
+            <div>
+              <p className="text-xs text-slate-400">Task Builder</p>
+              <p className="text-sm font-semibold">Create a new goal</p>
+            </div>
           </div>
+          <button
+            onClick={() => setShowPremiumMode(!showPremiumMode)}
+            className={`rounded-full px-3 py-1 text-xs font-medium transition-all ${
+              showPremiumMode
+                ? "bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg"
+                : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+            }`}
+          >
+            {showPremiumMode ? "⭐ Premium" : "Standard"}
+          </button>
         </div>
+
+        {showPremiumMode && (
+          <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
+            <div className="flex items-start gap-2">
+              <Sparkles size={16} className="mt-0.5 text-amber-400" />
+              <div className="flex-1">
+                <p className="text-xs font-semibold text-amber-200">Premium Mode Active</p>
+                <p className="mt-1 text-xs text-amber-300/80">
+                  Multi-agent council will debate your requirements and create a detailed architecture plan
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         <textarea
           value={goal}
           onChange={(e) => setGoal(e.target.value)}
           className="mt-3 h-24 w-full rounded-lg border border-slate-800/80 bg-slate-900/60 p-3 text-sm text-slate-100 focus:border-neon/60 focus:outline-none"
-          placeholder="Describe what you want to build"
+          placeholder={
+            showPremiumMode
+              ? "Describe your vision... Council will ask clarifying questions"
+              : "Describe what you want to build"
+          }
         />
         <div className="mt-2 flex items-center justify-between gap-2 text-xs text-slate-300">
           <div className="flex gap-2">
@@ -68,11 +101,22 @@ const SideBar = ({ tasks, onCreate, onSelect, isLoading }: SideBarProps) => {
             ))}
           </div>
           <button
-            className="flex items-center gap-1 rounded-lg bg-gradient-to-r from-neon to-blue-500 px-3 py-2 text-[13px] font-semibold text-slate-900 shadow-glow"
-            onClick={() => onCreate(goal, type)}
+            className={`flex items-center gap-1 rounded-lg px-3 py-2 text-[13px] font-semibold shadow-glow ${
+              showPremiumMode
+                ? "bg-gradient-to-r from-amber-500 to-orange-600 text-white"
+                : "bg-gradient-to-r from-neon to-blue-500 text-slate-900"
+            }`}
+            onClick={() => {
+              if (showPremiumMode) {
+                onStartEnhancedWorkflow(goal);
+              } else {
+                onCreate(goal, type);
+              }
+            }}
             disabled={isLoading || !goal.trim()}
           >
-            <Plus size={14} /> Create
+            <Plus size={14} />
+            {showPremiumMode ? "Start Premium Flow" : "Create"}
           </button>
         </div>
       </div>

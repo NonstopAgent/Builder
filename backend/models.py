@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any, Dict, List, Optional
+import uuid
 
 from pydantic import BaseModel, Field
 
@@ -66,6 +67,9 @@ class Task(BaseModel):
         default=None,
         description="Error message if the task fails during execution",
     )
+    metadata: Dict[str, Any] = Field(
+        default_factory=dict, description="Arbitrary metadata captured during task lifecycle"
+    )
 
     class Config:
         allow_population_by_field_name = True
@@ -82,9 +86,23 @@ class MessageResponse(BaseModel):
     response: str
 
 
+class AnswerSubmission(BaseModel):
+    question_id: str
+    answer: str
+
+
+class RequirementsSession(BaseModel):
+    session_id: str
+    initial_goal: str
+    questions: List[ClarifyingQuestion]
+    answers: List[Dict[str, Any]] = Field(default_factory=list)
+    specification: Dict[str, Any] = Field(default_factory=dict)
+
+
 class ClarifyingQuestion(BaseModel):
     """Represents a targeted question asked during requirements gathering."""
 
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     prompt: str
     category: str
     priority: int = Field(default=1, description="Higher values indicate greater urgency")
@@ -170,3 +188,30 @@ class ExecutionTrace(BaseModel):
     status: str
     logs: List[str] = Field(default_factory=list)
     verification: List[str] = Field(default_factory=list)
+
+
+class CouncilOpinion(BaseModel):
+    agent_role: str
+    proposal: str
+    concerns: List[str] = Field(default_factory=list)
+    recommendations: List[str] = Field(default_factory=list)
+    confidence: float = 0.7
+
+
+class CouncilRound(BaseModel):
+    round_number: int
+    topic: str
+    opinions: List[CouncilOpinion]
+
+
+class CouncilDebateRequest(BaseModel):
+    prd: str
+
+
+class CouncilDebateResult(BaseModel):
+    prd: str
+    rounds: List[CouncilRound]
+    final_architecture: str
+    consensus_reached: bool
+    participating_agents: List[str]
+    key_decisions: List[str] = Field(default_factory=list)

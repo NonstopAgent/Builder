@@ -1,16 +1,25 @@
 import os
 import uuid
-from typing import Any, Dict, List
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.models import (
+    AnswerSubmission,
+    ClarifyingQuestion,
+    CouncilDebateRequest,
+    CouncilDebateResult,
     CreateTaskRequest,
     MessageRequest,
     MessageResponse,
+    RequirementsSession,
     Task,
 )
+from backend.agents.requirements_agent import RequirementsAgent
+from backend.agents.council import DevelopmentCouncil
+from backend.agents.execution_engine import ExecutionEngine
 from backend.storage import load_tasks, save_tasks, upsert_task
 from backend.agents.super_builder import get_agent as get_super_builder_agent
 from backend.agents.claude_agent import get_agent as get_claude_agent
@@ -62,6 +71,8 @@ app.add_middleware(
 
 # In-memory store for simple chat per session
 SESSIONS_STORE: Dict[str, List[Dict[str, str]]] = {}
+REQUIREMENTS_SESSIONS: Dict[str, RequirementsSession] = {}
+COUNCIL_DEBATES: Dict[str, CouncilDebateResult] = {}
 
 
 # --------------------------------------------------------------------------- #
@@ -85,6 +96,289 @@ def _find_task(task_id: int) -> Task:
 def _update_and_save_task(updated_task: Task) -> Task:
     upsert_task(updated_task)
     return updated_task
+
+
+# --------------------------------------------------------------------------- #
+# Requirements gathering
+# --------------------------------------------------------------------------- #
+
+
+@app.post("/requirements/start", response_model=Dict[str, Any])
+async def start_requirements_gathering(request: Dict[str, str]):
+    """
+    Start interactive requirements gathering.
+    Returns session ID and initial clarifying questions.
+    """
+
+    goal = request.get("goal", "")
+    if not goal.strip():
+        raise HTTPException(status_code=400, detail="Goal cannot be empty")
+
+    agent = RequirementsAgent()
+    questions = await agent.generate_clarifying_questions(goal)
+
+    session = RequirementsSession(
+        session_id=str(uuid.uuid4()),
+        initial_goal=goal,
+        questions=questions,
+        answers=[],
+        specification={},
+    )
+
+    REQUIREMENTS_SESSIONS[session.session_id] = session
+
+    return {
+        "session_id": session.session_id,
+        "goal": goal,
+        "questions": [q.dict() for q in questions],
+        "total_questions": len(questions),
+    }
+
+
+@app.post("/requirements/{session_id}/answer", response_model=Dict[str, Any])
+async def submit_answer(session_id: str, submission: AnswerSubmission):
+    """
+    Submit answer to a requirements question.
+    System may generate follow-up questions.
+    """
+
+    if session_id not in REQUIREMENTS_SESSIONS:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    session = REQUIREMENTS_SESSIONS[session_id]
+    agent = RequirementsAgent()
+
+    result = await agent.process_answer(
+        question=submission.question_id, answer=submission.answer, session=session
+    )
+
+    session.answers.append(
+        {
+            "question_id": submission.question_id,
+            "answer": submission.answer,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+    )
+    session.specification = result["specification"]
+
+    followup_questions: List[ClarifyingQuestion] = result.get("followup_questions", [])
+    if followup_questions:
+        session.questions.extend(followup_questions)
+
+    REQUIREMENTS_SESSIONS[session_id] = session
+
+    answered_count = len(session.answers)
+    total_count = len(session.questions)
+
+    return {
+        "session_id": session_id,
+        "specification": session.specification,
+        "followup_questions": [q.dict() for q in followup_questions],
+        "progress": {
+            "answered": answered_count,
+            "total": total_count,
+            "percentage": (answered_count / total_count * 100) if total_count > 0 else 0,
+        },
+        "is_complete": answered_count >= total_count,
+    }
+
+
+@app.post("/requirements/{session_id}/finalize", response_model=Dict[str, Any])
+async def finalize_requirements(session_id: str):
+    """
+    Finalize requirements and generate comprehensive PRD.
+    """
+
+    if session_id not in REQUIREMENTS_SESSIONS:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    session = REQUIREMENTS_SESSIONS[session_id]
+    agent = RequirementsAgent()
+
+    prd = await agent.generate_prd(session)
+
+    return {
+        "session_id": session_id,
+        "prd": prd,
+        "specification": session.specification,
+    }
+
+
+@app.get("/requirements/{session_id}", response_model=Dict[str, Any])
+async def get_requirements_session(session_id: str):
+    """
+    Get current state of requirements gathering session.
+    """
+
+    if session_id not in REQUIREMENTS_SESSIONS:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    session = REQUIREMENTS_SESSIONS[session_id]
+
+    return {
+        "session_id": session.session_id,
+        "goal": session.initial_goal,
+        "questions": [q.dict() for q in session.questions],
+        "answers": session.answers,
+        "specification": session.specification,
+        "progress": {
+            "answered": len(session.answers),
+            "total": len(session.questions),
+        },
+    }
+
+
+# --------------------------------------------------------------------------- #
+# Council debate
+# --------------------------------------------------------------------------- #
+
+
+@app.post("/council/debate", response_model=Dict[str, Any])
+async def start_council_debate(request: CouncilDebateRequest):
+    """
+    Initiate multi-agent council debate on implementation approach.
+    This is a long-running operation that conducts 3 rounds of debate.
+    """
+
+    council = DevelopmentCouncil()
+    debate_id = str(uuid.uuid4())
+
+    try:
+        result = await council.conduct_debate(request.prd)
+
+        COUNCIL_DEBATES[debate_id] = result
+
+        return {
+            "debate_id": debate_id,
+            "status": "completed",
+            "rounds": len(result.rounds),
+            "consensus_reached": result.consensus_reached,
+            "architecture_document": result.final_architecture,
+            "debate_summary": {
+                "participating_agents": result.participating_agents,
+                "total_opinions": sum(len(r.opinions) for r in result.rounds),
+                "key_decisions": result.key_decisions,
+            },
+        }
+    except Exception as exc:  # pragma: no cover - defensive catch for async calls
+        raise HTTPException(status_code=500, detail=f"Debate failed: {str(exc)}")
+
+
+@app.get("/council/debate/{debate_id}", response_model=Dict[str, Any])
+async def get_debate_details(debate_id: str):
+    """
+    Get detailed information about a council debate.
+    """
+
+    if debate_id not in COUNCIL_DEBATES:
+        raise HTTPException(status_code=404, detail="Debate not found")
+
+    result = COUNCIL_DEBATES[debate_id]
+
+    return {
+        "debate_id": debate_id,
+        "prd": result.prd,
+        "rounds": [
+            {
+                "round_number": r.round_number,
+                "topic": r.topic,
+                "opinions": [
+                    {
+                        "agent": o.agent_role,
+                        "proposal": o.proposal,
+                        "concerns": o.concerns,
+                        "recommendations": o.recommendations,
+                        "confidence": o.confidence,
+                    }
+                    for o in r.opinions
+                ],
+            }
+            for r in result.rounds
+        ],
+        "final_architecture": result.final_architecture,
+        "consensus_reached": result.consensus_reached,
+    }
+
+
+# --------------------------------------------------------------------------- #
+# Enhanced Task Creation with Council
+# --------------------------------------------------------------------------- #
+
+
+@app.post("/tasks/create-with-council", response_model=Task)
+async def create_task_with_council(request: Dict[str, Any]):
+    """
+    Create a task with full requirements gathering and council debate.
+    This is the "premium" task creation flow.
+    """
+
+    if "goal" not in request:
+        raise HTTPException(status_code=400, detail="Goal is required")
+
+    if "prd" not in request:
+        req_agent = RequirementsAgent()
+        questions = await req_agent.generate_clarifying_questions(request["goal"])
+
+        return {
+            "step": "requirements",
+            "message": "Please answer these questions first",
+            "questions": [q.dict() for q in questions],
+        }
+
+    council = DevelopmentCouncil()
+    debate_result = await council.conduct_debate(request["prd"])
+
+    tasks = load_tasks()
+    next_id = max((t.id for t in tasks), default=0) + 1
+
+    task = Task(
+        id=next_id,
+        type=request.get("type", "build"),
+        goal=request["goal"],
+        status="queued",
+        plan=[],
+        logs=[
+            f"Requirements gathered: {len(request.get('requirements', []))} questions answered",
+            f"Council debate completed with {len(debate_result.participating_agents)} agents",
+            f"Architecture document generated: {len(debate_result.final_architecture)} characters",
+        ],
+        metadata={
+            "prd": request["prd"],
+            "architecture": debate_result.final_architecture,
+            "debate_id": str(uuid.uuid4()),
+        },
+    )
+
+    tasks.append(task)
+    save_tasks(tasks)
+
+    return task
+
+
+# --------------------------------------------------------------------------- #
+# Execution status
+# --------------------------------------------------------------------------- #
+
+
+@app.get("/execution/{task_id}/status", response_model=Dict[str, Any])
+async def get_execution_status(task_id: int):
+    """
+    Get real-time execution status with verification results.
+    """
+
+    task = _find_task(task_id)
+
+    return {
+        "task_id": task_id,
+        "status": task.status,
+        "current_step": task.current_step,
+        "total_steps": len(task.plan),
+        "progress_percentage": (task.current_step / len(task.plan) * 100) if task.plan else 0,
+        "recent_logs": task.logs[-10:] if task.logs else [],
+        "verification_results": task.metadata.get("verification_results", [])
+        if hasattr(task, "metadata")
+        else [],
+    }
 
 
 # --------------------------------------------------------------------------- #
