@@ -1,32 +1,246 @@
 [
   {
     "id": 1,
-    "status": "done",
+    "type": "build",
     "goal": "Bootstrap the repository structure.",
-    "notes": "Create folders /backend, /frontend, /workspace, /plans. Initialize tasks.json, README.md, .gitignore. Add package managers etc."
+    "project_id": null,
+    "status": "done",
+    "plan": [],
+    "current_step": 0,
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-01T00:00:00Z",
+    "logs": [
+      "Task imported from initial checklist."
+    ],
+    "error": null,
+    "metadata": {
+      "notes": "Create folders /backend, /frontend, /workspace, /plans. Initialize tasks.json, README.md, .gitignore. Add package managers etc."
+    }
   },
   {
     "id": 2,
-    "status": "in_progress",
+    "type": "build",
     "goal": "Implement core backend APIs.",
-    "notes": "Define FastAPI routes for sessions and messages, integrate task queue persistence, council endpoints, tool actions, worker logic."
+    "project_id": null,
+    "status": "in_progress",
+    "plan": [],
+    "current_step": 0,
+    "created_at": "2024-01-02T00:00:00Z",
+    "updated_at": "2024-01-02T00:00:00Z",
+    "logs": [
+      "Imported from initial checklist."
+    ],
+    "error": null,
+    "metadata": {
+      "notes": "Define FastAPI routes for sessions and messages, integrate task queue persistence, council endpoints, tool actions, worker logic."
+    }
   },
   {
     "id": 3,
-    "status": "in_progress",
+    "type": "build",
     "goal": "Integrate agent planning and tools.",
-    "notes": "Wire ChatGPT Agent Mode to backend, call Claude planner, implement file operations and commands, diff summarization and verification."
+    "project_id": null,
+    "status": "in_progress",
+    "plan": [],
+    "current_step": 0,
+    "created_at": "2024-01-03T00:00:00Z",
+    "updated_at": "2024-01-03T00:00:00Z",
+    "logs": [
+      "Imported from initial checklist."
+    ],
+    "error": null,
+    "metadata": {
+      "notes": "Wire ChatGPT Agent Mode to backend, call Claude planner, implement file operations and commands, diff summarization and verification."
+    }
   },
   {
     "id": 4,
-    "status": "in_progress",
+    "type": "build",
     "goal": "Build the frontend UI.",
-    "notes": "Create left sidebar, chat panel, right panel with plan/log view; implement file explorer and diff viewer; ensure mobile responsiveness and dark/light mode."
+    "project_id": null,
+    "status": "in_progress",
+    "plan": [],
+    "current_step": 0,
+    "created_at": "2024-01-04T00:00:00Z",
+    "updated_at": "2024-01-04T00:00:00Z",
+    "logs": [
+      "Imported from initial checklist."
+    ],
+    "error": null,
+    "metadata": {
+      "notes": "Create left sidebar, chat panel, right panel with plan/log view; implement file explorer and diff viewer; ensure mobile responsiveness and dark/light mode."
+    }
   },
   {
     "id": 5,
-    "status": "todo",
+    "type": "build",
     "goal": "Develop the autonomy engine.",
-    "notes": "Implement continuous scheduled runs, task resume logic, checkpoints, health checks, and safe loop execution."
+    "project_id": null,
+    "status": "todo",
+    "plan": [],
+    "current_step": 0,
+    "created_at": "2024-01-05T00:00:00Z",
+    "updated_at": "2024-01-05T00:00:00Z",
+    "logs": [
+      "Imported from initial checklist."
+    ],
+    "error": null,
+    "metadata": {
+      "notes": "Implement continuous scheduled runs, task resume logic, checkpoints, health checks, and safe loop execution."
+    }
+  },
+  {
+    "id": 6,
+    "type": "build",
+    "goal": "Create hello world script",
+    "project_id": null,
+    "status": "queued",
+    "plan": [],
+    "current_step": 0,
+    "created_at": "2025-11-18T03:44:51.487278",
+    "updated_at": "2025-11-18T03:44:51.487293",
+    "logs": [
+      "Task created."
+    ],
+    "error": null,
+    "metadata": {}
+  },
+  {
+    "id": 7,
+    "type": "build",
+    "goal": "Generate a simple plan",
+    "project_id": null,
+    "status": "in_progress",
+    "plan": [
+      {
+        "description": "Analyze the goal: Generate a simple plan",
+        "status": "completed",
+        "result": "Executed step: Analyze the goal: Generate a simple plan",
+        "logs": [
+          "Executed step: Analyze the goal: Generate a simple plan"
+        ],
+        "error": null,
+        "metadata": null
+      },
+      {
+        "description": "Design and implement a solution for: Generate a simple plan",
+        "status": "pending",
+        "result": null,
+        "logs": [],
+        "error": null,
+        "metadata": null
+      },
+      {
+        "description": "Test and review the solution for: Generate a simple plan",
+        "status": "pending",
+        "result": null,
+        "logs": [],
+        "error": null,
+        "metadata": null
+      }
+    ],
+    "current_step": 1,
+    "created_at": "2025-11-18T03:44:51.495946",
+    "updated_at": "2025-11-18T03:44:51.500141",
+    "logs": [
+      "Task created.",
+      "Executed step: Analyze the goal: Generate a simple plan"
+    ],
+    "error": null,
+    "metadata": {}
+  },
+  {
+    "id": 8,
+    "type": "build",
+    "goal": "Run to completion",
+    "project_id": null,
+    "status": "completed",
+    "plan": [
+      {
+        "description": "Analyze the goal: Run to completion",
+        "status": "completed",
+        "result": "Executed step: Analyze the goal: Run to completion",
+        "logs": [
+          "Executed step: Analyze the goal: Run to completion"
+        ],
+        "error": null,
+        "metadata": null
+      },
+      {
+        "description": "Design and implement a solution for: Run to completion",
+        "status": "completed",
+        "result": "Executed step: Design and implement a solution for: Run to completion",
+        "logs": [
+          "Executed step: Design and implement a solution for: Run to completion"
+        ],
+        "error": null,
+        "metadata": null
+      },
+      {
+        "description": "Test and review the solution for: Run to completion",
+        "status": "completed",
+        "result": "Executed step: Test and review the solution for: Run to completion",
+        "logs": [
+          "Executed step: Test and review the solution for: Run to completion"
+        ],
+        "error": null,
+        "metadata": null
+      }
+    ],
+    "current_step": 3,
+    "created_at": "2025-11-18T03:44:51.510350",
+    "updated_at": "2025-11-18T03:44:51.514453",
+    "logs": [
+      "Task created.",
+      "Executed step: Analyze the goal: Run to completion",
+      "Executed step: Design and implement a solution for: Run to completion",
+      "Executed step: Test and review the solution for: Run to completion"
+    ],
+    "error": null,
+    "metadata": {}
+  },
+  {
+    "id": 9,
+    "type": "build",
+    "goal": "Session-based task",
+    "project_id": null,
+    "status": "in_progress",
+    "plan": [
+      {
+        "description": "Analyze the goal: Session-based task",
+        "status": "completed",
+        "result": "Executed step: Analyze the goal: Session-based task",
+        "logs": [
+          "Executed step: Analyze the goal: Session-based task"
+        ],
+        "error": null,
+        "metadata": null
+      },
+      {
+        "description": "Design and implement a solution for: Session-based task",
+        "status": "pending",
+        "result": null,
+        "logs": [],
+        "error": null,
+        "metadata": null
+      },
+      {
+        "description": "Test and review the solution for: Session-based task",
+        "status": "pending",
+        "result": null,
+        "logs": [],
+        "error": null,
+        "metadata": null
+      }
+    ],
+    "current_step": 1,
+    "created_at": "2025-11-18T03:44:51.540341",
+    "updated_at": "2025-11-18T03:44:51.543884",
+    "logs": [
+      "[session:d1780880-9870-44c3-bd57-563454751e14] Task created.",
+      "Executed step: Analyze the goal: Session-based task"
+    ],
+    "error": null,
+    "metadata": {}
   }
 ]
