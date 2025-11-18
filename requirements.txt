@@ -1,30 +1,9 @@
 fastapi
 uvicorn[standard]
-pydantic
-openai>=0.27.0
-
-# Claude / Anthropic client
-anthropic>=0.34.0
-
-# Environment variable loading (optional but recommended)
+pydantic>=2.0.0
 python-dotenv>=1.0.0
-
-# HTTP client (useful for future tooling)
+openai>=0.27.0
+anthropic>=0.40.0
 httpx>=0.27.0
-
-# Multi-agent orchestration and persistence
-langchain>=0.1.0
-langgraph>=0.0.1
-chromadb>=0.4.0
-redis>=5.0.0
-celery>=5.3.0
-sqlalchemy>=2.0.0
-alembic>=1.12.0
-
-# Testing and quality gates
 pytest>=7.4.0
-playwright>=1.40.0
-
-# Observability and safety
-prometheus-client>=0.19.0
-sentry-sdk>=1.38.0
+pytest-asyncio>=0.21.0
