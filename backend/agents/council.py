@@ -4,7 +4,19 @@ from __future__ import annotations
 
 from typing import List
 
-from ..models import AgentOpinion, CouncilDecision, DebateResult, DebateRound, DetailedPlan, PlanPhase, PlanStep, Specification
+from ..models import (
+    AgentOpinion,
+    CouncilDebateResult,
+    CouncilOpinion,
+    CouncilRound,
+    CouncilDecision,
+    DebateResult,
+    DebateRound,
+    DetailedPlan,
+    PlanPhase,
+    PlanStep,
+    Specification,
+)
 
 
 DEFAULT_AGENT_PROFILES = [
@@ -134,3 +146,54 @@ class DevelopmentCouncil:
 
         await self.debate(spec)
         return await self._build_plan(spec)
+
+    async def conduct_debate(self, prd: str) -> CouncilDebateResult:
+        """Public API used by the backend endpoint to orchestrate three rounds of debate."""
+
+        spec = Specification(goal=prd.split("\n")[0] if prd else prd)
+
+        rounds: List[CouncilRound] = []
+        detailed_rounds = [
+            (1, "Initial approaches"),
+            (2, "Risk assessment"),
+            (3, "Consensus and rollout"),
+        ]
+
+        for round_number, topic in detailed_rounds:
+            opinions: List[CouncilOpinion] = []
+            for name, role in self.agent_profiles:
+                opinions.append(
+                    CouncilOpinion(
+                        agent_role=f"{name} ({role})",
+                        proposal=f"{topic}: {name} recommends aligning with the PRD focus.",
+                        concerns=["Validate dependencies", "Confirm timelines"] if round_number == 2 else [],
+                        recommendations=["Document assumptions", "Share architecture digest"],
+                        confidence=0.7 + (round_number * 0.05),
+                    )
+                )
+            rounds.append(
+                CouncilRound(round_number=round_number, topic=topic, opinions=opinions)
+            )
+
+        architecture_summary = "\n".join(
+            [
+                "# Architecture Outline",
+                "- Adopt modular front-end with reusable components",
+                "- Establish CI with automated verification and linting",
+                "- Plan phased rollout with checkpoints after each debate round",
+            ]
+        )
+
+        key_decisions = [
+            "Use council-generated verification hooks during execution",
+            "Include UX and Security agents in all critical reviews",
+        ]
+
+        return CouncilDebateResult(
+            prd=prd,
+            rounds=rounds,
+            final_architecture=architecture_summary,
+            consensus_reached=True,
+            participating_agents=[name for name, _ in self.agent_profiles],
+            key_decisions=key_decisions,
+        )

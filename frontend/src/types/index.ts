@@ -40,6 +40,22 @@ export interface ChatMessage {
   timestamp: string;
 }
 
+export interface ClarifyingQuestion {
+  id: string;
+  prompt: string;
+  category: string;
+  priority: number;
+}
+
+export interface RequirementsSessionState {
+  session_id: string;
+  goal: string;
+  questions: ClarifyingQuestion[];
+  answers: { question_id: string; answer: string; timestamp: string }[];
+  specification: Record<string, unknown>;
+  progress: { answered: number; total: number; percentage?: number };
+}
+
 export interface Tab {
   id: string;
   path: string;
