@@ -12,17 +12,20 @@ interface SidebarProps {
 export const Sidebar = ({ tasks, selectedTaskId, onSelect, onNewChat, isLoading }: SidebarProps) => {
   return (
     <aside className="w-64 bg-slate-950 border-r border-slate-800 flex flex-col">
-      <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between gap-3">
-        <div>
-          <div className="text-xs uppercase tracking-wide text-slate-400">Session Ready</div>
-          <div className="text-lg font-semibold text-slate-50">Super Builder Pro</div>
+      <div className="px-4 py-3 border-b border-slate-800">
+        <div className="text-[10px] uppercase tracking-wide text-slate-500 mb-1">Projects</div>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-xs text-slate-400">Workspace</div>
+            <div className="text-lg font-semibold text-slate-50">Super Builder Pro</div>
+          </div>
+          <button
+            onClick={onNewChat}
+            className="text-xs px-3 py-1.5 rounded-full bg-slate-800 text-slate-100 hover:bg-slate-700 border border-slate-700"
+          >
+            New project
+          </button>
         </div>
-        <button
-          onClick={onNewChat}
-          className="text-xs px-3 py-1.5 rounded-full bg-slate-800 text-slate-100 hover:bg-slate-700 border border-slate-700"
-        >
-          New chat
-        </button>
       </div>
 
       <div className="px-4 pt-3 pb-1 text-xs uppercase tracking-wide text-slate-500">Recents</div>
