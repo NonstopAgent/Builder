@@ -136,87 +136,89 @@ const App = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#060b16] p-4">
-      <div className="mx-auto max-w-[1600px] space-y-4">
-        <TopBar
-          selectedTask={selectedTask}
-          onRunTask={handleRunTask}
-          onRunAll={handleRunAll}
-          onRefresh={() => queryClient.invalidateQueries({ queryKey: ["tasks"] })}
-        />
-
-        <SplitPane split="vertical" minSize={320} defaultSize={360} className="rounded-xl">
-          <SideBar
-            tasks={tasks}
-            onCreate={handleCreate}
-            onSelect={setSelectedTaskId}
-            isLoading={tasksLoading}
-            onStartEnhancedWorkflow={handleStartEnhancedWorkflow}
+    <>
+      <div className="min-h-screen bg-[#060b16] p-4">
+        <div className="mx-auto max-w-[1600px] space-y-4">
+          <TopBar
+            selectedTask={selectedTask}
+            onRunTask={handleRunTask}
+            onRunAll={handleRunAll}
+            onRefresh={() => queryClient.invalidateQueries({ queryKey: ["tasks"] })}
           />
-          <SplitPane split="horizontal" defaultSize="68%" minSize={380} className="rounded-xl">
-            <SplitPane split="vertical" defaultSize="58%" minSize={420}>
-              <EditorPanel />
-              <SplitPane split="horizontal" defaultSize="55%" minSize={280}>
-                {panelVisibility.showPreview ? (
-                  <PreviewPanel html={previewHtml} />
-                ) : (
-                  <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-800 text-slate-500">
-                    Preview hidden
-                  </div>
-                )}
-                {panelVisibility.showChat ? (
-                  <ChatPanel messages={chatMessages} onSend={handleSendMessage} />
-                ) : (
-                  <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-800 text-slate-500">
-                    Chat hidden
-                  </div>
-                )}
+
+          <SplitPane split="vertical" minSize={320} defaultSize={360} className="rounded-xl">
+            <SideBar
+              tasks={tasks}
+              onCreate={handleCreate}
+              onSelect={setSelectedTaskId}
+              isLoading={tasksLoading}
+              onStartEnhancedWorkflow={handleStartEnhancedWorkflow}
+            />
+            <SplitPane split="horizontal" defaultSize="68%" minSize={380} className="rounded-xl">
+              <SplitPane split="vertical" defaultSize="58%" minSize={420}>
+                <EditorPanel />
+                <SplitPane split="horizontal" defaultSize="55%" minSize={280}>
+                  {panelVisibility.showPreview ? (
+                    <PreviewPanel html={previewHtml} />
+                  ) : (
+                    <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-800 text-slate-500">
+                      Preview hidden
+                    </div>
+                  )}
+                  {panelVisibility.showChat ? (
+                    <ChatPanel messages={chatMessages} onSend={handleSendMessage} />
+                  ) : (
+                    <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-800 text-slate-500">
+                      Chat hidden
+                    </div>
+                  )}
+                </SplitPane>
               </SplitPane>
+              {panelVisibility.showTerminal ? (
+                <div className="grid h-full gap-3 md:grid-cols-2">
+                  {selectedTaskId ? (
+                    <ExecutionMonitor taskId={selectedTaskId} />
+                  ) : (
+                    <div className="flex items-center justify-center rounded-xl border border-dashed border-slate-800 text-slate-500">
+                      Select a task to view execution
+                    </div>
+                  )}
+                  <BottomPanel logs={terminalLogs} />
+                </div>
+              ) : (
+                <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-800 text-slate-500">
+                  Terminal hidden
+                </div>
+              )}
             </SplitPane>
-            {panelVisibility.showTerminal ? (
-              <div className="grid h-full gap-3 md:grid-cols-2">
-                {selectedTaskId ? (
-                  <ExecutionMonitor taskId={selectedTaskId} />
-                ) : (
-                  <div className="flex items-center justify-center rounded-xl border border-dashed border-slate-800 text-slate-500">
-                    Select a task to view execution
-                  </div>
-                )}
-                <BottomPanel logs={terminalLogs} />
-              </div>
-            ) : (
-              <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-800 text-slate-500">
-                Terminal hidden
-              </div>
-            )}
           </SplitPane>
-        </SplitPane>
-      </div>
-    </div>
-
-    {showRequirements && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-        <div className="max-h-[90vh] w-full max-w-4xl overflow-auto">
-          <RequirementsWizard
-            initialGoal={currentGoal}
-            onComplete={handleRequirementsComplete}
-            onCancel={() => setShowRequirements(false)}
-          />
         </div>
       </div>
-    )}
 
-    {showCouncil && currentPRD && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-        <div className="max-h-[90vh] w-full max-w-6xl overflow-auto">
-          <CouncilDebateViewer
-            prd={currentPRD}
-            onComplete={handleCouncilComplete}
-            onCancel={() => setShowCouncil(false)}
-          />
+      {showRequirements && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="max-h-[90vh] w-full max-w-4xl overflow-auto">
+            <RequirementsWizard
+              initialGoal={currentGoal}
+              onComplete={handleRequirementsComplete}
+              onCancel={() => setShowRequirements(false)}
+            />
+          </div>
         </div>
-      </div>
-    )}
+      )}
+
+      {showCouncil && currentPRD && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="max-h-[90vh] w-full max-w-6xl overflow-auto">
+            <CouncilDebateViewer
+              prd={currentPRD}
+              onComplete={handleCouncilComplete}
+              onCancel={() => setShowCouncil(false)}
+            />
+          </div>
+        </div>
+      )}
+    </>
   );
 };
 
