@@ -21,8 +21,9 @@ interface SidebarProps {
 export const Sidebar = ({ tasks, selectedTaskId, onSelect, onNewChat, isLoading }: SidebarProps) => {
   const [collapsed, setCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const projects = tasks.filter((task) => task.type === "build").slice(0, 8);
 
-  const filteredTasks = tasks.filter(task => 
+  const filteredTasks = tasks.filter(task =>
     task.goal.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -90,6 +91,50 @@ export const Sidebar = ({ tasks, selectedTaskId, onSelect, onNewChat, isLoading 
           <MessageSquarePlus size={16} />
           New chat
         </button>
+      </div>
+
+      {/* Projects section */}
+      <div className="px-3 pt-3 pb-3 border-b border-slate-800">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <Folder size={14} className="text-slate-400" />
+            <span className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">
+              Projects
+            </span>
+          </div>
+          {projects.length > 0 && (
+            <span className="text-[10px] text-slate-500">
+              {projects.length}
+            </span>
+          )}
+        </div>
+
+        {projects.length === 0 ? (
+          <p className="text-[11px] text-slate-600">
+            No projects yet. Describe a build in the chat to create one.
+          </p>
+        ) : (
+          <div className="space-y-1">
+            {projects.map((task) => (
+              <button
+                key={task.id}
+                onClick={() => onSelect(task.id)}
+                className={`w-full text-left px-2 py-1.5 rounded-lg text-xs transition-colors ${
+                  selectedTaskId === task.id
+                    ? "bg-slate-800 text-slate-50"
+                    : "text-slate-300 hover:bg-slate-900"
+                }`}
+              >
+                <div className="truncate">
+                  {task.goal || "Untitled project"}
+                </div>
+                <div className="mt-0.5 text-[10px] text-slate-500">
+                  {new Date(task.createdAt).toLocaleDateString()}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Search */}
