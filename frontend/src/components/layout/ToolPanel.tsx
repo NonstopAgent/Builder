@@ -3,16 +3,22 @@ import EditorPanel from "../Editor/EditorPanel";
 import PreviewPanel from "../Preview/PreviewPanel";
 import { ExecutionMonitor } from "../Execution/ExecutionMonitor";
 
-const tabs = ["Workspace", "Preview", "Terminal"] as const;
+const tabs = ["Workspace", "Preview", "Terminal", "Collab Log"] as const;
 type Tab = (typeof tabs)[number];
 
 interface ToolPanelProps {
   previewHtml?: string;
   terminalLogs: string[];
   selectedTaskId?: string;
+  collaborationLog?: string;
 }
 
-export const ToolPanel: React.FC<ToolPanelProps> = ({ previewHtml, terminalLogs, selectedTaskId }) => {
+export const ToolPanel: React.FC<ToolPanelProps> = ({
+  previewHtml,
+  terminalLogs,
+  selectedTaskId,
+  collaborationLog,
+}) => {
   const [activeTab, setActiveTab] = useState<Tab>("Workspace");
 
   return (
@@ -80,6 +86,19 @@ export const ToolPanel: React.FC<ToolPanelProps> = ({ previewHtml, terminalLogs,
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "Collab Log" && (
+          <div className="h-full overflow-auto p-3 space-y-2 text-sm text-slate-200">
+            <p className="text-slate-500 text-xs">AI Collaboration Log</p>
+            <div className="h-full rounded-xl border border-slate-800 bg-slate-900/60 p-3 whitespace-pre-wrap text-xs text-slate-100">
+              {collaborationLog?.trim() ? (
+                <>{collaborationLog}</>
+              ) : (
+                <span className="text-slate-500">Ask for a larger build to see the ChatGPT + Claude plan and review.</span>
+              )}
             </div>
           </div>
         )}
