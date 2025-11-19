@@ -94,21 +94,28 @@ const App = () => {
 
     let targetTaskId = selectedTaskId;
 
-    if (!targetTaskId) {
-      const task = await createTaskMutation.mutateAsync({ goal: message, type: "build" });
-      targetTaskId = task.id;
-      setSelectedTaskId(task.id);
-      setTerminalLogs([]);
-    }
-
-    const existingMessages = targetTaskId ? chatHistory[targetTaskId] ?? [] : [];
-    const updatedMessages = [...existingMessages, userMessage];
-
-    if (targetTaskId) {
-      setChatHistory((prev) => ({ ...prev, [targetTaskId]: updatedMessages }));
-    }
-
     try {
+      if (!targetTaskId) {
+        const task = await createTaskMutation.mutateAsync({
+          goal: message,
+          type: "build",
+        });
+
+        targetTaskId = task.id;
+        setSelectedTaskId(task.id);
+        setTerminalLogs([]);
+      }
+
+      const existingMessages = targetTaskId ? chatHistory[targetTaskId] ?? [] : [];
+      const updatedMessages = [...existingMessages, userMessage];
+
+      if (targetTaskId) {
+        setChatHistory((prev) => ({
+          ...prev,
+          [targetTaskId!]: updatedMessages,
+        }));
+      }
+
       const response = await sendAgentMessage(updatedMessages);
 
       const assistantMessage: ChatMessage = {
@@ -121,7 +128,10 @@ const App = () => {
       if (targetTaskId) {
         setChatHistory((prev) => {
           const existing = prev[targetTaskId!] ?? updatedMessages;
-          return { ...prev, [targetTaskId!]: [...existing, assistantMessage] };
+          return {
+            ...prev,
+            [targetTaskId!]: [...existing, assistantMessage],
+          };
         });
       }
 
@@ -129,27 +139,49 @@ const App = () => {
         setCollaborationLog(response.log);
       }
     } catch (error) {
+      const fallbackTaskId = targetTaskId ?? selectedTaskId ?? `local-${Date.now()}`;
+      const existingMessages = (fallbackTaskId && chatHistory[fallbackTaskId]) ?? [];
       const assistantMessage: ChatMessage = {
         id: crypto.randomUUID(),
         role: "assistant",
-        content: "Sorry, I couldn't reach the AI orchestrator right now.",
+        content:
+          "Something went wrong sending that to the agent. Check the backend logs or refresh and try again.",
         timestamp: new Date().toISOString(),
       };
 
-      if (targetTaskId) {
-        setChatHistory((prev) => {
-          const existing = prev[targetTaskId] ?? updatedMessages;
-          return { ...prev, [targetTaskId]: [...existing, assistantMessage] };
-        });
+      const updatedMessages = [...existingMessages, userMessage, assistantMessage];
+
+      if (fallbackTaskId) {
+        setChatHistory((prev) => ({
+          ...prev,
+          [fallbackTaskId]: updatedMessages,
+        }));
+        if (!selectedTaskId) {
+          setSelectedTaskId(fallbackTaskId);
+        }
       }
     }
   };
 
-  const handleNewChat = () => {
-    setSelectedTaskId(undefined);
+  const handleNewChat = async () => {
     setTerminalLogs([]);
     setPreviewHtml("");
     setCollaborationLog("");
+
+    try {
+      const task = await createTaskMutation.mutateAsync({
+        goal: "New build",
+        type: "build",
+      });
+
+      setSelectedTaskId(task.id);
+      setChatHistory((prev) => ({
+        ...prev,
+        [task.id]: prev[task.id] ?? [],
+      }));
+    } catch (error) {
+      setSelectedTaskId(undefined);
+    }
   };
 
   const activeMessages = selectedTaskId ? chatHistory[selectedTaskId] ?? [] : [];
