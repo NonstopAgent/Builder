@@ -5,6 +5,8 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+import httpx
+from pydantic import BaseModel
 
 from backend.models import (
     AnswerSubmission,
@@ -16,6 +18,11 @@ from backend.models import (
     MessageResponse,
     RequirementsSession,
     Task,
+)
+from backend.orchestrator import (
+    AgentOrchestrationResponse,
+    ConversationMessage,
+    orchestrate,
 )
 from backend.agents.requirements_agent import RequirementsAgent
 from backend.agents.council import DevelopmentCouncil
@@ -397,6 +404,28 @@ def health() -> Dict[str, Any]:
         "agent": AGENT_MODE,
         "workspace": str(WORKSPACE_DIR),
     }
+
+
+# --------------------------------------------------------------------------- #
+# AI Orchestration (ChatGPT + Claude)
+# --------------------------------------------------------------------------- #
+
+
+class AgentChatRequest(BaseModel):
+    messages: List[ConversationMessage]
+
+
+@app.post("/agent", response_model=AgentOrchestrationResponse)
+async def agent_chat(request: AgentChatRequest) -> AgentOrchestrationResponse:
+    """
+    Smart chat endpoint that routes between simple responses and collaborative
+    build flow (OpenAI + Anthropic).
+    """
+
+    try:
+        return await orchestrate(request.messages)
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(status_code=exc.response.status_code, detail=exc.response.text)
 
 
 # --------------------------------------------------------------------------- #

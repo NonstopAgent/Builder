@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createTask, fetchTaskLogs, fetchTasks, runAllTasks, runTask } from "./api";
+import { createTask, fetchTaskLogs, fetchTasks, runAllTasks, runTask, sendAgentMessage } from "./api";
 import { ChatMessage, Task, TaskType } from "./types";
 import { useUIStore } from "./store/useStore";
 import { Sidebar } from "./components/layout/Sidebar";
@@ -14,6 +14,7 @@ const App = () => {
   const [chatHistory, setChatHistory] = useState<Record<string, ChatMessage[]>>({});
   const [previewHtml, setPreviewHtml] = useState<string>("");
   const [terminalLogs, setTerminalLogs] = useState<string[]>([]);
+  const [collaborationLog, setCollaborationLog] = useState<string>("");
 
   const { data: tasks = [], isLoading: tasksLoading } = useQuery({
     queryKey: ["tasks"],
@@ -91,36 +92,70 @@ const App = () => {
       timestamp: now,
     };
 
-    if (!selectedTaskId) {
+    let targetTaskId = selectedTaskId;
+
+    if (!targetTaskId) {
       const task = await createTaskMutation.mutateAsync({ goal: message, type: "build" });
+      targetTaskId = task.id;
+      setSelectedTaskId(task.id);
+      setTerminalLogs([]);
+    }
+
+    const existingMessages = targetTaskId ? chatHistory[targetTaskId] ?? [] : [];
+    const updatedMessages = [...existingMessages, userMessage];
+
+    if (targetTaskId) {
+      setChatHistory((prev) => ({ ...prev, [targetTaskId]: updatedMessages }));
+    }
+
+    try {
+      const response = await sendAgentMessage(updatedMessages);
+
       const assistantMessage: ChatMessage = {
         id: crypto.randomUUID(),
         role: "assistant",
-        content: `Starting a new build for "${message}". I'll plan and share progress here.`,
+        content: response.reply,
         timestamp: new Date().toISOString(),
       };
 
-      setChatHistory((prev) => ({ ...prev, [task.id]: [userMessage, assistantMessage] }));
-      setTerminalLogs([]);
-      return;
-    }
+      if (targetTaskId) {
+        setChatHistory((prev) => {
+          const existing = prev[targetTaskId!] ?? updatedMessages;
+          return { ...prev, [targetTaskId!]: [...existing, assistantMessage] };
+        });
+      }
 
-    setChatHistory((prev) => {
-      const existing = prev[selectedTaskId] ?? [];
-      return { ...prev, [selectedTaskId]: [...existing, userMessage] };
-    });
+      if (response.log) {
+        setCollaborationLog(response.log);
+      }
+    } catch (error) {
+      const assistantMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: "Sorry, I couldn't reach the AI orchestrator right now.",
+        timestamp: new Date().toISOString(),
+      };
+
+      if (targetTaskId) {
+        setChatHistory((prev) => {
+          const existing = prev[targetTaskId] ?? updatedMessages;
+          return { ...prev, [targetTaskId]: [...existing, assistantMessage] };
+        });
+      }
+    }
   };
 
   const handleNewChat = () => {
     setSelectedTaskId(undefined);
     setTerminalLogs([]);
     setPreviewHtml("");
+    setCollaborationLog("");
   };
 
   const activeMessages = selectedTaskId ? chatHistory[selectedTaskId] ?? [] : [];
 
   const shouldShowTools = Boolean(
-    selectedTaskId && (terminalLogs.length > 0 || !!previewHtml || tabs.length > 0)
+    selectedTaskId && (terminalLogs.length > 0 || !!previewHtml || tabs.length > 0 || collaborationLog)
   );
 
   const isRunning = runTaskMutation.isPending || runAllMutation.isPending;
@@ -149,7 +184,12 @@ const App = () => {
         </div>
 
         {shouldShowTools && (
-          <ToolPanel previewHtml={previewHtml} terminalLogs={terminalLogs} selectedTaskId={selectedTaskId} />
+          <ToolPanel
+            previewHtml={previewHtml}
+            terminalLogs={terminalLogs}
+            selectedTaskId={selectedTaskId}
+            collaborationLog={collaborationLog}
+          />
         )}
       </div>
     </>
