@@ -27,9 +27,19 @@ const App = () => {
 
   useEffect(() => {
     setChatHistory((prev) => {
-      const updated = { ...prev };
+      const updated: Record<string, ChatMessage[]> = { ...prev };
+
       tasks.forEach((task) => {
-        if (!updated[task.id]) {
+        // If backend has real messages stored, use them
+        if (task.messages && task.messages.length > 0) {
+          updated[task.id] = task.messages.map((m, index) => ({
+            id: `${task.id}-${index}`,
+            role: m.role,
+            content: m.content,
+            timestamp: task.createdAt ?? new Date().toISOString(),
+          }));
+        } else if (!updated[task.id]) {
+          // Fallback: simple "task created" intro if no messages yet
           updated[task.id] = [
             {
               id: `${task.id}-intro`,
@@ -40,6 +50,7 @@ const App = () => {
           ];
         }
       });
+
       return updated;
     });
   }, [tasks]);
@@ -97,28 +108,32 @@ const App = () => {
     let targetTaskId = selectedTaskId;
 
     try {
+      // Create a task if there isn't one yet
       if (!targetTaskId) {
         const task = await createTaskMutation.mutateAsync({
           goal: message,
           type: "build",
         });
-
         targetTaskId = task.id;
         setSelectedTaskId(task.id);
         setTerminalLogs([]);
       }
 
-      const existingMessages = targetTaskId ? chatHistory[targetTaskId] ?? [] : [];
-      const updatedMessages = [...existingMessages, userMessage];
-
-      if (targetTaskId) {
-        setChatHistory((prev) => ({
-          ...prev,
-          [targetTaskId!]: updatedMessages,
-        }));
+      if (!targetTaskId) {
+        throw new Error("No task id available for this chat");
       }
 
-      const response = await sendAgentMessage(updatedMessages);
+      const existingMessages = chatHistory[targetTaskId] ?? [];
+      const updatedMessages = [...existingMessages, userMessage];
+
+      // Show the user message immediately
+      setChatHistory((prev) => ({
+        ...prev,
+        [targetTaskId!]: updatedMessages,
+      }));
+
+      // Call the agent with taskId so backend can store memory
+      const response = await sendAgentMessage(targetTaskId, updatedMessages);
 
       const assistantMessage: ChatMessage = {
         id: crypto.randomUUID(),
@@ -127,22 +142,24 @@ const App = () => {
         timestamp: new Date().toISOString(),
       };
 
-      if (targetTaskId) {
-        setChatHistory((prev) => {
-          const existing = prev[targetTaskId!] ?? updatedMessages;
-          return {
-            ...prev,
-            [targetTaskId!]: [...existing, assistantMessage],
-          };
-        });
-      }
+      setChatHistory((prev) => {
+        const existing = prev[targetTaskId!] ?? updatedMessages;
+        return {
+          ...prev,
+          [targetTaskId!]: [...existing, assistantMessage],
+        };
+      });
 
       if (response.log) {
         setCollaborationLog(response.log);
       }
     } catch (error) {
-      const fallbackTaskId = targetTaskId ?? selectedTaskId ?? `local-${Date.now()}`;
-      const existingMessages = (fallbackTaskId && chatHistory[fallbackTaskId]) ?? [];
+      // Fallback: never leave the user hanging
+      const fallbackTaskId =
+        targetTaskId ?? selectedTaskId ?? `local-${Date.now()}`;
+
+      const existingMessages =
+        (fallbackTaskId && chatHistory[fallbackTaskId]) ?? [];
       const assistantMessage: ChatMessage = {
         id: crypto.randomUUID(),
         role: "assistant",
@@ -153,14 +170,13 @@ const App = () => {
 
       const updatedMessages = [...existingMessages, userMessage, assistantMessage];
 
-      if (fallbackTaskId) {
-        setChatHistory((prev) => ({
-          ...prev,
-          [fallbackTaskId]: updatedMessages,
-        }));
-        if (!selectedTaskId) {
-          setSelectedTaskId(fallbackTaskId);
-        }
+      setChatHistory((prev) => ({
+        ...prev,
+        [fallbackTaskId]: updatedMessages,
+      }));
+
+      if (!selectedTaskId) {
+        setSelectedTaskId(fallbackTaskId);
       }
     }
   };
