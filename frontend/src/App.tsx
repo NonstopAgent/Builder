@@ -158,8 +158,6 @@ const App = () => {
     selectedTaskId && (terminalLogs.length > 0 || !!previewHtml || tabs.length > 0 || collaborationLog)
   );
 
-  const isRunning = runTaskMutation.isPending || runAllMutation.isPending;
-
   return (
     <div className="h-screen w-screen bg-slate-950 text-slate-100 flex overflow-hidden">
       <Sidebar
@@ -175,10 +173,7 @@ const App = () => {
           messages={activeMessages}
           logs={terminalLogs}
           onSend={handleSendMessage}
-          onRunTask={handleRunTask}
-          onRunAll={handleRunAll}
           selectedTask={selectedTask}
-          isRunning={isRunning}
         />
       </div>
 

@@ -1,5 +1,5 @@
 import { FormEvent, useMemo, useState, useRef, useEffect } from "react";
-import { Play, Sparkles, Send } from "lucide-react";
+import { Sparkles, Send } from "lucide-react";
 import MessageBubble from "../Chat/MessageBubble";
 import { ChatMessage, Task } from "../../types";
 
@@ -7,13 +7,10 @@ interface ChatPanelProps {
   messages: ChatMessage[];
   logs: string[];
   onSend: (message: string) => Promise<void> | void;
-  onRunTask: () => void;
-  onRunAll: () => void;
   selectedTask?: Task;
-  isRunning?: boolean;
 }
 
-export const ChatPanel = ({ messages, logs, onSend, onRunTask, onRunAll, selectedTask, isRunning }: ChatPanelProps) => {
+export const ChatPanel = ({ messages, logs, onSend, selectedTask }: ChatPanelProps) => {
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -34,11 +31,13 @@ export const ChatPanel = ({ messages, logs, onSend, onRunTask, onRunAll, selecte
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!draft.trim() || isSending) return;
-    
+
     setIsSending(true);
     try {
       await onSend(draft.trim());
       setDraft("");
+    } catch (error) {
+      console.error("Failed to send message:", error);
     } finally {
       setIsSending(false);
     }
@@ -70,25 +69,6 @@ export const ChatPanel = ({ messages, logs, onSend, onRunTask, onRunAll, selecte
               </span>
             </div>
           )}
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            className="px-3 py-1.5 text-sm rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
-            onClick={onRunTask}
-            disabled={!selectedTask || isRunning}
-          >
-            <Play size={14} />
-            Run Task
-          </button>
-          <button
-            className="px-3 py-1.5 text-sm rounded-lg bg-sky-500 text-white hover:bg-sky-400 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
-            onClick={onRunAll}
-            disabled={isRunning}
-          >
-            <Sparkles size={14} />
-            Run All
-          </button>
         </div>
       </header>
 
