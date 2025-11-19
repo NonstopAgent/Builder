@@ -1,25 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createTask, createTaskWithCouncil, fetchTaskLogs, fetchTasks, runAllTasks, runTask } from "./api";
+import { createTask, fetchTaskLogs, fetchTasks, runAllTasks, runTask } from "./api";
 import { ChatMessage, Task, TaskType } from "./types";
 import { useUIStore } from "./store/useStore";
 import { Sidebar } from "./components/layout/Sidebar";
 import { ChatPanel } from "./components/layout/ChatPanel";
 import { ToolPanel } from "./components/layout/ToolPanel";
-import { RequirementsWizard } from "./components/Requirements/RequirementsWizard";
-import { CouncilDebateViewer } from "./components/Council/CouncilDebateViewer";
 import "./index.css";
 
 const App = () => {
   const queryClient = useQueryClient();
-  const { selectedTaskId, setSelectedTaskId } = useUIStore();
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const { selectedTaskId, setSelectedTaskId, tabs } = useUIStore();
+  const [chatHistory, setChatHistory] = useState<Record<string, ChatMessage[]>>({});
   const [previewHtml, setPreviewHtml] = useState<string>("");
   const [terminalLogs, setTerminalLogs] = useState<string[]>([]);
-  const [showRequirements, setShowRequirements] = useState(false);
-  const [showCouncil, setShowCouncil] = useState(false);
-  const [currentPRD, setCurrentPRD] = useState<string | null>(null);
-  const [currentGoal, setCurrentGoal] = useState("");
 
   const { data: tasks = [], isLoading: tasksLoading } = useQuery({
     queryKey: ["tasks"],
@@ -28,23 +22,30 @@ const App = () => {
 
   const selectedTask = useMemo(() => tasks.find((task) => task.id === selectedTaskId), [tasks, selectedTaskId]);
 
+  useEffect(() => {
+    setChatHistory((prev) => {
+      const updated = { ...prev };
+      tasks.forEach((task) => {
+        if (!updated[task.id]) {
+          updated[task.id] = [
+            {
+              id: `${task.id}-intro`,
+              role: "assistant",
+              content: `Task created: ${task.goal}`,
+              timestamp: task.createdAt,
+            },
+          ];
+        }
+      });
+      return updated;
+    });
+  }, [tasks]);
+
   const createTaskMutation = useMutation({
     mutationFn: ({ goal, type }: { goal: string; type: TaskType }) => createTask({ goal, type }),
     onSuccess: (task) => {
       queryClient.setQueryData<Task[]>(["tasks"], (old = []) => [task, ...old]);
       setSelectedTaskId(task.id);
-    },
-  });
-
-  const createEnhancedTaskMutation = useMutation({
-    mutationFn: ({ goal, type, prd, architecture }: { goal: string; type: TaskType; prd: string; architecture?: string }) =>
-      createTaskWithCouncil({ goal, type, prd, architecture }),
-    onSuccess: (task) => {
-      queryClient.setQueryData<Task[]>(["tasks"], (old = []) => [task, ...old]);
-      setSelectedTaskId(task.id);
-      setShowCouncil(false);
-      setShowRequirements(false);
-      setCurrentPRD(null);
     },
   });
 
@@ -72,32 +73,6 @@ const App = () => {
     setTerminalLogs(logs);
   }, [logs]);
 
-  const handleCreate = (goal: string, type: TaskType) => {
-    createTaskMutation.mutate({ goal, type });
-  };
-
-  const handleStartEnhancedWorkflow = (goal: string) => {
-    setCurrentGoal(goal);
-    setShowRequirements(true);
-  };
-
-  const handleRequirementsComplete = (prd: string) => {
-    setCurrentPRD(prd);
-    setShowRequirements(false);
-    setShowCouncil(true);
-  };
-
-  const handleCouncilComplete = (architectureDoc: string) => {
-    setShowCouncil(false);
-    if (!currentPRD) return;
-    createEnhancedTaskMutation.mutate({
-      goal: currentGoal,
-      type: "build",
-      prd: currentPRD,
-      architecture: architectureDoc,
-    });
-  };
-
   const handleRunTask = () => {
     if (!selectedTaskId) return;
     runTaskMutation.mutate(selectedTaskId);
@@ -107,7 +82,7 @@ const App = () => {
     runAllMutation.mutate();
   };
 
-  const handleSendMessage = (message: string) => {
+  const handleSendMessage = async (message: string) => {
     const now = new Date().toISOString();
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
@@ -115,20 +90,38 @@ const App = () => {
       content: message,
       timestamp: now,
     };
-    setChatMessages((prev) => [...prev, userMessage]);
 
-    const assistant: ChatMessage = {
-      id: crypto.randomUUID(),
-      role: "assistant",
-      content: `I can help with that! I'll queue a task to "${message}".`,
-      timestamp: new Date().toISOString(),
-    };
-    setChatMessages((prev) => [...prev, assistant]);
+    if (!selectedTaskId) {
+      const task = await createTaskMutation.mutateAsync({ goal: message, type: "build" });
+      const assistantMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: `Starting a new build for "${message}". I'll plan and share progress here.`,
+        timestamp: new Date().toISOString(),
+      };
 
-    if (message.length > 6) {
-      createTaskMutation.mutate({ goal: message, type: "build" });
+      setChatHistory((prev) => ({ ...prev, [task.id]: [userMessage, assistantMessage] }));
+      setTerminalLogs([]);
+      return;
     }
+
+    setChatHistory((prev) => {
+      const existing = prev[selectedTaskId] ?? [];
+      return { ...prev, [selectedTaskId]: [...existing, userMessage] };
+    });
   };
+
+  const handleNewChat = () => {
+    setSelectedTaskId(undefined);
+    setTerminalLogs([]);
+    setPreviewHtml("");
+  };
+
+  const activeMessages = selectedTaskId ? chatHistory[selectedTaskId] ?? [] : [];
+
+  const shouldShowTools = Boolean(
+    selectedTaskId && (terminalLogs.length > 0 || !!previewHtml || tabs.length > 0)
+  );
 
   const isRunning = runTaskMutation.isPending || runAllMutation.isPending;
 
@@ -139,14 +132,13 @@ const App = () => {
           tasks={tasks}
           selectedTaskId={selectedTaskId}
           onSelect={setSelectedTaskId}
-          onCreate={handleCreate}
+          onNewChat={handleNewChat}
           isLoading={tasksLoading}
-          onStartEnhancedWorkflow={handleStartEnhancedWorkflow}
         />
 
         <div className="flex-1 flex flex-col border-x border-slate-800">
           <ChatPanel
-            messages={chatMessages}
+            messages={activeMessages}
             logs={terminalLogs}
             onSend={handleSendMessage}
             onRunTask={handleRunTask}
@@ -156,32 +148,10 @@ const App = () => {
           />
         </div>
 
-        <ToolPanel previewHtml={previewHtml} terminalLogs={terminalLogs} selectedTaskId={selectedTaskId} />
+        {shouldShowTools && (
+          <ToolPanel previewHtml={previewHtml} terminalLogs={terminalLogs} selectedTaskId={selectedTaskId} />
+        )}
       </div>
-
-      {showRequirements && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div className="max-h-[90vh] w-full max-w-4xl overflow-auto">
-            <RequirementsWizard
-              initialGoal={currentGoal}
-              onComplete={handleRequirementsComplete}
-              onCancel={() => setShowRequirements(false)}
-            />
-          </div>
-        </div>
-      )}
-
-      {showCouncil && currentPRD && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div className="max-h-[90vh] w-full max-w-6xl overflow-auto">
-            <CouncilDebateViewer
-              prd={currentPRD}
-              onComplete={handleCouncilComplete}
-              onCancel={() => setShowCouncil(false)}
-            />
-          </div>
-        </div>
-      )}
     </>
   );
 };

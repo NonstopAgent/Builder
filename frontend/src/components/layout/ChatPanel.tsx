@@ -6,7 +6,7 @@ import { ChatMessage, Task } from "../../types";
 interface ChatPanelProps {
   messages: ChatMessage[];
   logs: string[];
-  onSend: (message: string) => void;
+  onSend: (message: string) => Promise<void> | void;
   onRunTask: () => void;
   onRunAll: () => void;
   selectedTask?: Task;
@@ -21,10 +21,10 @@ export const ChatPanel = ({ messages, logs, onSend, onRunTask, onRunAll, selecte
     [messages]
   );
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!draft.trim()) return;
-    onSend(draft.trim());
+    await onSend(draft.trim());
     setDraft("");
   };
 
