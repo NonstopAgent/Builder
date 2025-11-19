@@ -2,6 +2,17 @@
 
 AI-powered development assistant with multi-agent collaboration and autonomous task execution.
 
+## Quick Start
+
+Frontend (Vite + React):
+1. cd frontend
+2. npm install
+3. npm run dev
+
+Deployment (Vercel):
+- Project root is connected to Vercel.
+- vercel.json builds the frontend from /frontend and serves from /frontend/dist.
+
 ## 🚀 Quick Start
 
 ### Backend (FastAPI + Python)
@@ -27,14 +38,20 @@ npm run dev
 
 Frontend: http://localhost:5173
 
+From the repository root, the key frontend commands are:
+- `cd frontend && npm install`
+- `cd frontend && npm run dev`
+- `cd frontend && npm run build`
+
 ## 🏗️ Architecture
 
 ```
 super-builder/
-├── backend/          # FastAPI server with AI agents
-├── frontend/         # React UI
-├── workspace/        # AI-managed files
-└── docs/            # Documentation
+├── backend/          # FastAPI server with AI agents (deployable via Railway or similar)
+├── frontend/         # Vite + React UI built and served via Vercel
+├── docs/             # Documentation
+├── plans/            # Product and planning notes
+└── workspace/        # AI-managed files and examples
 ```
 
 ## ✨ Features
