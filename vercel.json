@@ -1,1 +1,16 @@
-{}
+{
+  "_comment": "Vercel builds the Vite frontend from /frontend using npm run build and serves the dist output.",
+  "version": 2,
+  "builds": [
+    {
+      "src": "frontend/package.json",
+      "use": "@vercel/static-build"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ]
+}
