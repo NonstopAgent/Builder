@@ -412,6 +412,7 @@ def health() -> Dict[str, Any]:
 
 
 class AgentChatRequest(BaseModel):
+    task_id: Optional[int] = None
     messages: List[ConversationMessage]
 
 
@@ -420,12 +421,29 @@ async def agent_chat(request: AgentChatRequest) -> AgentOrchestrationResponse:
     """
     Smart chat endpoint that routes between simple responses and collaborative
     build flow (OpenAI + Anthropic).
-    """
 
+    Now also attaches the conversation and reply to a Task if task_id is provided,
+    so chats are persisted across refreshes.
+    """
     try:
-        return await orchestrate(request.messages)
+        response = await orchestrate(request.messages)
     except httpx.HTTPStatusError as exc:
         raise HTTPException(status_code=exc.response.status_code, detail=exc.response.text)
+
+    # ✅ Persist conversation as task memory if we know which task this is for
+    if request.task_id is not None:
+        tasks = load_tasks()
+        for task in tasks:
+            if task.id == request.task_id:
+                # Store the entire conversation plus the latest assistant reply
+                task.messages = [m.model_dump() for m in request.messages] + [
+                    {"role": "assistant", "content": response.reply}
+                ]
+                task.updated_at = datetime.utcnow().isoformat()
+                upsert_task(task)
+                break
+
+    return response
 
 
 # --------------------------------------------------------------------------- #

@@ -11,6 +11,11 @@ export interface Step {
   error?: string | null;
 }
 
+export interface StoredMessage {
+  role: "user" | "assistant" | "system";
+  content: string;
+}
+
 export interface Task {
   id: string;
   goal: string;
@@ -18,6 +23,9 @@ export interface Task {
   status: TaskStatus;
   steps: Step[];
   createdAt: string;
+  updatedAt?: string;
+  logs?: string[];
+  messages?: StoredMessage[];
 }
 
 export interface FileEntry {

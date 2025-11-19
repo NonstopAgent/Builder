@@ -68,7 +68,14 @@ class Task(BaseModel):
         description="Error message if the task fails during execution",
     )
     metadata: Dict[str, Any] = Field(
-        default_factory=dict, description="Arbitrary metadata captured during task lifecycle"
+        default_factory=dict,
+        description="Arbitrary metadata captured during task lifecycle",
+    )
+
+    # 🔥 Full conversation history for this task (simple role/content pairs)
+    messages: List[Dict[str, str]] = Field(
+        default_factory=list,
+        description="Chat history associated with this task (role/content pairs).",
     )
 
     class Config:
