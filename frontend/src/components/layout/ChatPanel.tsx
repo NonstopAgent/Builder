@@ -217,7 +217,7 @@ export const ChatPanel = ({
             <textarea
               ref={textareaRef}
               rows={1}
-              className="w-full resize-none bg-transparent px-4 py-3 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none max-h-40"
+              className="w-full resize-none bg-transparent pl-4 pr-12 py-3 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none max-h-40"
               placeholder="Type / for commands, @ for files, or ask Builder anything..."
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
@@ -227,7 +227,7 @@ export const ChatPanel = ({
             <button
               type="submit"
               disabled={!draft.trim() || isSending}
-              className="absolute right-2 bottom-2 p-2 rounded-lg bg-sky-500 text-white hover:bg-sky-400 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="absolute right-2.5 bottom-2.5 p-2 rounded-lg bg-sky-500 text-white hover:bg-sky-400 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               <Send size={16} />
             </button>
