@@ -161,38 +161,36 @@ const App = () => {
   const isRunning = runTaskMutation.isPending || runAllMutation.isPending;
 
   return (
-    <>
-      <div className="h-screen w-screen bg-slate-950 text-slate-100 flex">
-        <Sidebar
-          tasks={tasks}
-          selectedTaskId={selectedTaskId}
-          onSelect={setSelectedTaskId}
-          onNewChat={handleNewChat}
-          isLoading={tasksLoading}
+    <div className="h-screen w-screen bg-slate-950 text-slate-100 flex overflow-hidden">
+      <Sidebar
+        tasks={tasks}
+        selectedTaskId={selectedTaskId}
+        onSelect={setSelectedTaskId}
+        onNewChat={handleNewChat}
+        isLoading={tasksLoading}
+      />
+
+      <div className="flex-1 flex flex-col min-w-0">
+        <ChatPanel
+          messages={activeMessages}
+          logs={terminalLogs}
+          onSend={handleSendMessage}
+          onRunTask={handleRunTask}
+          onRunAll={handleRunAll}
+          selectedTask={selectedTask}
+          isRunning={isRunning}
         />
-
-        <div className="flex-1 flex flex-col border-x border-slate-800">
-          <ChatPanel
-            messages={activeMessages}
-            logs={terminalLogs}
-            onSend={handleSendMessage}
-            onRunTask={handleRunTask}
-            onRunAll={handleRunAll}
-            selectedTask={selectedTask}
-            isRunning={isRunning}
-          />
-        </div>
-
-        {shouldShowTools && (
-          <ToolPanel
-            previewHtml={previewHtml}
-            terminalLogs={terminalLogs}
-            selectedTaskId={selectedTaskId}
-            collaborationLog={collaborationLog}
-          />
-        )}
       </div>
-    </>
+
+      {shouldShowTools && (
+        <ToolPanel
+          previewHtml={previewHtml}
+          terminalLogs={terminalLogs}
+          selectedTaskId={selectedTaskId}
+          collaborationLog={collaborationLog}
+        />
+      )}
+    </div>
   );
 };
 
