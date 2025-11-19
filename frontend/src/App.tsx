@@ -1,23 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
-import SplitPane from "react-split-pane";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createTask, createTaskWithCouncil, fetchTaskLogs, fetchTasks, runAllTasks, runTask } from "./api";
 import { ChatMessage, Task, TaskType } from "./types";
 import { useUIStore } from "./store/useStore";
-import TopBar from "./components/Layout/TopBar";
-import SideBar from "./components/Layout/SideBar";
-import BottomPanel from "./components/Layout/BottomPanel";
-import EditorPanel from "./components/Editor/EditorPanel";
-import PreviewPanel from "./components/Preview/PreviewPanel";
-import ChatPanel from "./components/Chat/ChatPanel";
+import { Sidebar } from "./components/layout/Sidebar";
+import { ChatPanel } from "./components/layout/ChatPanel";
+import { ToolPanel } from "./components/layout/ToolPanel";
 import { RequirementsWizard } from "./components/Requirements/RequirementsWizard";
 import { CouncilDebateViewer } from "./components/Council/CouncilDebateViewer";
-import { ExecutionMonitor } from "./components/Execution/ExecutionMonitor";
 import "./index.css";
 
 const App = () => {
   const queryClient = useQueryClient();
-  const { selectedTaskId, setSelectedTaskId, panelVisibility } = useUIStore();
+  const { selectedTaskId, setSelectedTaskId } = useUIStore();
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [previewHtml, setPreviewHtml] = useState<string>("");
   const [terminalLogs, setTerminalLogs] = useState<string[]>([]);
@@ -135,64 +130,33 @@ const App = () => {
     }
   };
 
+  const isRunning = runTaskMutation.isPending || runAllMutation.isPending;
+
   return (
     <>
-      <div className="min-h-screen bg-[#060b16] p-4">
-        <div className="mx-auto max-w-[1600px] space-y-4">
-          <TopBar
-            selectedTask={selectedTask}
+      <div className="h-screen w-screen bg-slate-950 text-slate-100 flex">
+        <Sidebar
+          tasks={tasks}
+          selectedTaskId={selectedTaskId}
+          onSelect={setSelectedTaskId}
+          onCreate={handleCreate}
+          isLoading={tasksLoading}
+          onStartEnhancedWorkflow={handleStartEnhancedWorkflow}
+        />
+
+        <div className="flex-1 flex flex-col border-x border-slate-800">
+          <ChatPanel
+            messages={chatMessages}
+            logs={terminalLogs}
+            onSend={handleSendMessage}
             onRunTask={handleRunTask}
             onRunAll={handleRunAll}
-            onRefresh={() => queryClient.invalidateQueries({ queryKey: ["tasks"] })}
+            selectedTask={selectedTask}
+            isRunning={isRunning}
           />
-
-          <SplitPane split="vertical" minSize={320} defaultSize={360} className="rounded-xl">
-            <SideBar
-              tasks={tasks}
-              onCreate={handleCreate}
-              onSelect={setSelectedTaskId}
-              isLoading={tasksLoading}
-              onStartEnhancedWorkflow={handleStartEnhancedWorkflow}
-            />
-            <SplitPane split="horizontal" defaultSize="68%" minSize={380} className="rounded-xl">
-              <SplitPane split="vertical" defaultSize="58%" minSize={420}>
-                <EditorPanel />
-                <SplitPane split="horizontal" defaultSize="55%" minSize={280}>
-                  {panelVisibility.showPreview ? (
-                    <PreviewPanel html={previewHtml} />
-                  ) : (
-                    <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-800 text-slate-500">
-                      Preview hidden
-                    </div>
-                  )}
-                  {panelVisibility.showChat ? (
-                    <ChatPanel messages={chatMessages} onSend={handleSendMessage} />
-                  ) : (
-                    <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-800 text-slate-500">
-                      Chat hidden
-                    </div>
-                  )}
-                </SplitPane>
-              </SplitPane>
-              {panelVisibility.showTerminal ? (
-                <div className="grid h-full gap-3 md:grid-cols-2">
-                  {selectedTaskId ? (
-                    <ExecutionMonitor taskId={selectedTaskId} />
-                  ) : (
-                    <div className="flex items-center justify-center rounded-xl border border-dashed border-slate-800 text-slate-500">
-                      Select a task to view execution
-                    </div>
-                  )}
-                  <BottomPanel logs={terminalLogs} />
-                </div>
-              ) : (
-                <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-800 text-slate-500">
-                  Terminal hidden
-                </div>
-              )}
-            </SplitPane>
-          </SplitPane>
         </div>
+
+        <ToolPanel previewHtml={previewHtml} terminalLogs={terminalLogs} selectedTaskId={selectedTaskId} />
       </div>
 
       {showRequirements && (
