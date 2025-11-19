@@ -1,9 +1,8 @@
 import { useState } from "react";
 import { 
-  MessageSquarePlus, 
-  FolderPlus, 
-  ChevronLeft, 
-  ChevronRight, 
+  MessageSquarePlus,
+  ChevronLeft,
+  ChevronRight,
   Search,
   Clock,
   Folder,
@@ -90,13 +89,6 @@ export const Sidebar = ({ tasks, selectedTaskId, onSelect, onNewChat, isLoading 
         >
           <MessageSquarePlus size={16} />
           New chat
-        </button>
-        <button
-          onClick={onNewChat}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-700 hover:bg-slate-800 text-slate-300 hover:text-slate-100 text-sm transition-colors"
-        >
-          <FolderPlus size={16} />
-          New project
         </button>
       </div>
 
