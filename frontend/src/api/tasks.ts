@@ -43,6 +43,8 @@ export const runTaskToCompletion = async (taskId: string | number): Promise<Task
   return response.data;
 };
 
+export const runTask = runTaskToCompletion;
+
 export const runAllTasks = async (): Promise<void> => {
   await apiClient.post(`/tasks/run-all`);
 };
