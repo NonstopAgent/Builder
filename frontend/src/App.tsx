@@ -6,6 +6,7 @@ import { useUIStore } from "./store/useStore";
 import { Sidebar } from "./components/layout/Sidebar";
 import { ChatPanel } from "./components/layout/ChatPanel";
 import { ToolPanel } from "./components/layout/ToolPanel";
+import { PanelRightClose, PanelRightOpen } from "lucide-react";
 import "./index.css";
 
 const App = () => {
@@ -15,6 +16,7 @@ const App = () => {
   const [previewHtml, setPreviewHtml] = useState<string>("");
   const [terminalLogs, setTerminalLogs] = useState<string[]>([]);
   const [collaborationLog, setCollaborationLog] = useState<string>("");
+  const [toolsOpen, setToolsOpen] = useState(true);
 
   const { data: tasks = [], isLoading: tasksLoading } = useQuery({
     queryKey: ["tasks"],
@@ -191,7 +193,7 @@ const App = () => {
   );
 
   return (
-    <div className="h-screen w-screen bg-slate-950 text-slate-100 flex overflow-hidden">
+    <div className="relative h-screen w-screen bg-slate-950 text-slate-100 flex overflow-hidden">
       <Sidebar
         tasks={tasks}
         selectedTaskId={selectedTaskId}
@@ -209,13 +211,23 @@ const App = () => {
         />
       </div>
 
-      {shouldShowTools && (
+      {shouldShowTools && toolsOpen && (
         <ToolPanel
           previewHtml={previewHtml}
           terminalLogs={terminalLogs}
           selectedTaskId={selectedTaskId}
           collaborationLog={collaborationLog}
         />
+      )}
+
+      {shouldShowTools && (
+        <button
+          onClick={() => setToolsOpen((prev) => !prev)}
+          className="absolute right-3 top-1/2 -translate-y-1/2 z-20 h-10 w-10 rounded-full border border-slate-700 bg-slate-950/90 shadow-lg flex items-center justify-center hover:bg-slate-900 hover:border-sky-500 text-slate-300 hover:text-sky-400 transition-colors"
+          title={toolsOpen ? "Hide tools" : "Show tools"}
+        >
+          {toolsOpen ? <PanelRightClose size={18} /> : <PanelRightOpen size={18} />}
+        </button>
       )}
     </div>
   );
