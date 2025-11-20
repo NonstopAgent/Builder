@@ -11,9 +11,11 @@ export interface Step {
   error?: string | null;
 }
 
-export interface StoredMessage {
+export interface Message {
+  id?: string;
   role: "user" | "assistant" | "system";
   content: string;
+  createdAt?: string;
 }
 
 export interface MemoryItem {
@@ -28,14 +30,15 @@ export interface MemoryItem {
 
 export interface Task {
   id: string;
+  title?: string;
   goal: string;
   type: TaskType;
   status: TaskStatus;
-  steps: Step[];
-  createdAt: string;
+  steps?: Step[];
+  createdAt?: string;
   updatedAt?: string;
   logs?: string[];
-  messages?: StoredMessage[];
+  messages?: Message[];
 }
 
 export interface FileEntry {

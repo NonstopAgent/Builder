@@ -45,18 +45,39 @@ class Step(BaseModel):
     )
 
 
+class Message(BaseModel):
+    """Represents a single role/content exchange in a conversation."""
+
+    id: Optional[str] = None
+    role: str
+    content: str
+    created_at: Optional[datetime] = Field(default=None, alias="createdAt")
+
+    class Config:
+        allow_population_by_field_name = True
+
+
 class Task(BaseModel):
     """Represents a task managed by the backend."""
 
-    id: int
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    title: Optional[str] = None
     type: str = Field(..., alias="type")
     goal: str
     project_id: Optional[str] = None
     status: str = Field(default="queued", description="Overall task status")
     plan: List[Step] = Field(default_factory=list, description="Ordered list of plan steps")
     current_step: int = Field(default=0, description="Index of the current step in the plan")
-    created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat(), description="ISO timestamp when the task was created")
-    updated_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat(), description="ISO timestamp when the task was last updated")
+    created_at: datetime = Field(
+        default_factory=datetime.utcnow,
+        alias="createdAt",
+        description="ISO timestamp when the task was created",
+    )
+    updated_at: datetime = Field(
+        default_factory=datetime.utcnow,
+        alias="updatedAt",
+        description="ISO timestamp when the task was last updated",
+    )
 
     # New fields to capture task-level logs and errors
     logs: List[str] = Field(
@@ -73,7 +94,7 @@ class Task(BaseModel):
     )
 
     # 🔥 Full conversation history for this task (simple role/content pairs)
-    messages: List[Dict[str, str]] = Field(
+    messages: List[Message] = Field(
         default_factory=list,
         description="Chat history associated with this task (role/content pairs).",
     )

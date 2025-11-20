@@ -1,6 +1,9 @@
 import { apiClient } from "./client";
 import { Step, Task, TaskType } from "../types";
 
+const BASE_URL =
+  import.meta.env.VITE_BACKEND_URL ?? import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+
 export interface CreateTaskPayload {
   goal: string;
   type: TaskType;
@@ -16,9 +19,20 @@ export interface AnswerSubmission {
   answer: string;
 }
 
-export const fetchTasks = async (): Promise<Task[]> => {
-  const response = await apiClient.get<Task[]>("/tasks");
-  return response.data;
+export const fetchTasks = async (limit = 30): Promise<Task[]> => {
+  const response = await fetch(`${BASE_URL}/tasks?limit=${limit}`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch tasks: ${response.status}`);
+  }
+  return response.json();
+};
+
+export const fetchTaskById = async (taskId: string): Promise<Task> => {
+  const response = await fetch(`${BASE_URL}/tasks/${taskId}`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch task ${taskId}: ${response.status}`);
+  }
+  return response.json();
 };
 
 export const createTask = async (payload: CreateTaskPayload): Promise<Task> => {

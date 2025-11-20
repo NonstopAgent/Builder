@@ -12,7 +12,7 @@ import { Task } from "../../types";
 
 interface SidebarProps {
   tasks: Task[];
-  selectedTaskId?: string;
+  selectedTaskId?: string | null;
   onSelect: (taskId: string) => void;
   onNewChat: () => void;
   isLoading?: boolean;
@@ -22,6 +22,8 @@ export const Sidebar = ({ tasks, selectedTaskId, onSelect, onNewChat, isLoading 
   const [collapsed, setCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const projects = tasks.filter((task) => task.type === "build").slice(0, 8);
+
+  const getTaskDate = (task: Task) => new Date(task.updatedAt ?? task.createdAt ?? Date.now());
 
   const filteredTasks = tasks.filter(task =>
     task.goal.toLowerCase().includes(searchQuery.toLowerCase())
@@ -35,13 +37,13 @@ export const Sidebar = ({ tasks, selectedTaskId, onSelect, onNewChat, isLoading 
   lastWeek.setDate(lastWeek.getDate() - 7);
 
   const groupedTasks = {
-    today: filteredTasks.filter(t => new Date(t.createdAt).toDateString() === today.toDateString()),
-    yesterday: filteredTasks.filter(t => new Date(t.createdAt).toDateString() === yesterday.toDateString()),
+    today: filteredTasks.filter(t => getTaskDate(t).toDateString() === today.toDateString()),
+    yesterday: filteredTasks.filter(t => getTaskDate(t).toDateString() === yesterday.toDateString()),
     lastWeek: filteredTasks.filter(t => {
-      const date = new Date(t.createdAt);
+      const date = getTaskDate(t);
       return date > lastWeek && date < yesterday;
     }),
-    older: filteredTasks.filter(t => new Date(t.createdAt) <= lastWeek)
+    older: filteredTasks.filter(t => getTaskDate(t) <= lastWeek)
   };
 
   if (collapsed) {
@@ -126,10 +128,10 @@ export const Sidebar = ({ tasks, selectedTaskId, onSelect, onNewChat, isLoading 
                 }`}
               >
                 <div className="truncate">
-                  {task.goal || "Untitled project"}
+                  {task.goal || task.title || "Untitled project"}
                 </div>
                 <div className="mt-0.5 text-[10px] text-slate-500">
-                  {new Date(task.createdAt).toLocaleDateString()}
+                  {getTaskDate(task).toLocaleDateString()}
                 </div>
               </button>
             ))}
@@ -290,9 +292,9 @@ const ChatItem = ({ task, isSelected, onSelect }: {
           <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-500">
             <span className="capitalize">{task.type}</span>
             <span>•</span>
-            <span>{new Date(task.createdAt).toLocaleTimeString([], { 
-              hour: '2-digit', 
-              minute: '2-digit' 
+            <span>{getTaskDate(task).toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit'
             })}</span>
           </div>
         </div>
