@@ -47,6 +47,9 @@ const App = () => {
               timestamp: message.createdAt ?? fullTask.updatedAt ?? new Date().toISOString(),
             }));
             setMessages(hydratedMessages);
+
+            // 🔥 hydrate collab log from task, if present
+            setCollaborationLog(fullTask.collaborationLog ?? "");
           } catch (err) {
             console.error("Failed to load initial task", err);
           }
@@ -166,6 +169,13 @@ const App = () => {
 
       if (response.log) {
         setCollaborationLog(response.log);
+        setTasks((prev) =>
+          prev.map((task) =>
+            task.id === targetTaskId
+              ? { ...task, collaborationLog: response.log }
+              : task
+          )
+        );
       }
     } catch (error) {
       // Fallback: never leave the user hanging
@@ -226,6 +236,9 @@ const App = () => {
         timestamp: message.createdAt ?? fullTask.updatedAt ?? new Date().toISOString(),
       }));
       setMessages(hydratedMessages);
+
+      // 🔥 sync collab log from the selected task
+      setCollaborationLog(fullTask.collaborationLog ?? "");
     } catch (err) {
       console.error("Failed to load task", err);
     }
@@ -259,6 +272,7 @@ const App = () => {
           previewHtml={previewHtml}
           terminalLogs={terminalLogs}
           selectedTaskId={selectedTaskId}
+          selectedTask={selectedTask}
           collaborationLog={collaborationLog}
         />
       )}

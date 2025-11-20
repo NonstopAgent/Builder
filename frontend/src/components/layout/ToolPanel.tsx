@@ -1,8 +1,11 @@
 import { useState } from "react";
 import { Sparkles } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import EditorPanel from "../Editor/EditorPanel";
 import PreviewPanel from "../Preview/PreviewPanel";
 import { ExecutionMonitor } from "../Execution/ExecutionMonitor";
+import { Task } from "../../types";
 
 const tabs = ["Workspace", "Preview", "Terminal", "Collab Log"] as const;
 type Tab = (typeof tabs)[number];
@@ -11,6 +14,7 @@ interface ToolPanelProps {
   previewHtml?: string;
   terminalLogs: string[];
   selectedTaskId?: string | null;
+  selectedTask?: Task | null;
   collaborationLog?: string;
 }
 
@@ -18,6 +22,7 @@ export const ToolPanel: React.FC<ToolPanelProps> = ({
   previewHtml,
   terminalLogs,
   selectedTaskId,
+  selectedTask,
   collaborationLog,
 }) => {
   const [activeTab, setActiveTab] = useState<Tab>("Workspace");
@@ -116,18 +121,67 @@ export const ToolPanel: React.FC<ToolPanelProps> = ({
         )}
 
         {activeTab === "Collab Log" && (
-          <div className="h-full overflow-auto p-3 text-sm text-slate-200">
-            <p className="text-slate-500 text-xs mb-2">
-              Build plan &amp; collaboration
-            </p>
-            <div className="h-full rounded-xl border border-slate-800 bg-slate-900/60 overflow-auto p-4 text-xs leading-relaxed whitespace-pre-wrap">
-              {collaborationLog?.trim() ? (
-                <>{collaborationLog}</>
+          <div className="h-full overflow-auto p-3 text-sm text-slate-200 space-y-3">
+            <div>
+              <p className="text-slate-500 text-xs mb-1">Build activity</p>
+              {selectedTask?.logs && selectedTask.logs.length > 0 ? (
+                <div className="max-h-32 overflow-auto rounded-lg border border-slate-800/80 bg-slate-950/70 p-2 space-y-1">
+                  {selectedTask.logs.slice(-10).map((log, idx) => (
+                    <div key={idx} className="text-[11px] text-slate-300 flex gap-2">
+                      <span className="mt-1 h-1 w-1 rounded-full bg-sky-400" />
+                      <span>{log}</span>
+                    </div>
+                  ))}
+                </div>
               ) : (
-                <span className="text-slate-500">
-                  Ask for a larger build to see the ChatGPT + Claude plan and review.
-                </span>
+                <p className="text-[11px] text-slate-500">
+                  No high-level logs yet. Run a build or ask for a larger plan.
+                </p>
               )}
+            </div>
+
+            <div className="flex-1 min-h-0">
+              <p className="text-slate-500 text-xs mb-2">
+                Build plan &amp; collaboration
+              </p>
+              <div className="h-full max-h-[420px] rounded-xl border border-slate-800/80 bg-slate-950/80 overflow-auto p-3 text-xs leading-relaxed">
+                {collaborationLog?.trim() ? (
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      code({ inline, className, children, ...props }) {
+                        if (inline) {
+                          return (
+                            <code
+                              className={
+                                "font-mono text-[0.78rem] px-1 py-0.5 rounded bg-slate-900/80 border border-slate-700/70 " +
+                                (className ?? "")
+                              }
+                              {...props}
+                            >
+                              {children}
+                            </code>
+                          );
+                        }
+
+                        return (
+                          <pre className="mt-2 mb-2 rounded-lg bg-slate-950/90 border border-slate-800/80 p-3 overflow-x-auto">
+                            <code className="font-mono text-[0.78rem]" {...props}>
+                              {children}
+                            </code>
+                          </pre>
+                        );
+                      },
+                    }}
+                  >
+                    {collaborationLog}
+                  </ReactMarkdown>
+                ) : (
+                  <span className="text-slate-500">
+                    Ask for a larger build to see the ChatGPT + Claude plan and review.
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         )}
