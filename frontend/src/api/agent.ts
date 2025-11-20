@@ -11,14 +11,11 @@ export interface AgentResponse {
 
 // 🔥 Attach taskId so backend can store messages under that task
 export async function sendAgentMessage(
-  taskId: string | number,
+  taskId: string,
   messages: ChatMessage[]
 ): Promise<AgentResponse> {
-  const numericTaskId =
-    typeof taskId === "string" ? parseInt(taskId, 10) : taskId;
-
   const payload = {
-    task_id: numericTaskId,
+    task_id: taskId,
     messages: messages.map(({ role, content }) => ({ role, content })),
   };
 

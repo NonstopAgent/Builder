@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createTask, fetchTaskLogs, fetchTasks, runAllTasks, runTask, sendAgentMessage } from "./api";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { createTask, fetchTaskById, fetchTaskLogs, fetchTasks, runAllTasks, runTask, sendAgentMessage } from "./api";
 import { ChatMessage, Task, TaskType } from "./types";
 import { useUIStore } from "./store/useStore";
 import { Sidebar } from "./components/layout/Sidebar";
@@ -10,56 +10,64 @@ import { PanelRightClose, PanelRightOpen } from "lucide-react";
 import "./index.css";
 
 const App = () => {
-  const queryClient = useQueryClient();
-  const { selectedTaskId, setSelectedTaskId, tabs } = useUIStore();
-  const [chatHistory, setChatHistory] = useState<Record<string, ChatMessage[]>>({});
+  const { tabs } = useUIStore();
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [isLoadingTasks, setIsLoadingTasks] = useState(false);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [previewHtml, setPreviewHtml] = useState<string>("");
   const [terminalLogs, setTerminalLogs] = useState<string[]>([]);
   const [collaborationLog, setCollaborationLog] = useState<string>("");
   const [toolsOpen, setToolsOpen] = useState(true);
 
-  const { data: tasks = [], isLoading: tasksLoading } = useQuery({
-    queryKey: ["tasks"],
-    queryFn: fetchTasks,
-  });
-
   const selectedTask = useMemo(() => tasks.find((task) => task.id === selectedTaskId), [tasks, selectedTaskId]);
 
   useEffect(() => {
-    setChatHistory((prev) => {
-      const updated: Record<string, ChatMessage[]> = { ...prev };
+    const lastTaskId = window.localStorage.getItem("lastTaskId");
 
-      tasks.forEach((task) => {
-        // If backend has real messages stored, use them
-        if (task.messages && task.messages.length > 0) {
-          updated[task.id] = task.messages.map((m, index) => ({
-            id: `${task.id}-${index}`,
-            role: m.role,
-            content: m.content,
-            timestamp: task.createdAt ?? new Date().toISOString(),
-          }));
-        } else if (!updated[task.id]) {
-          // Fallback: simple "task created" intro if no messages yet
-          updated[task.id] = [
-            {
-              id: `${task.id}-intro`,
-              role: "assistant",
-              content: `Task created: ${task.goal}`,
-              timestamp: task.createdAt,
-            },
-          ];
+    async function init() {
+      try {
+        setIsLoadingTasks(true);
+        const loadedTasks = await fetchTasks(30);
+        setTasks(loadedTasks);
+
+        let initialTaskId = lastTaskId;
+        if (!initialTaskId && loadedTasks.length > 0) {
+          initialTaskId = loadedTasks[0].id;
         }
-      });
 
-      return updated;
-    });
-  }, [tasks]);
+        if (initialTaskId) {
+          setSelectedTaskId(initialTaskId);
+          try {
+            const fullTask = await fetchTaskById(initialTaskId);
+            const hydratedMessages = (fullTask.messages ?? []).map((message, index) => ({
+              id: message.id ?? `${initialTaskId}-${index}`,
+              role: message.role,
+              content: message.content,
+              timestamp: message.createdAt ?? fullTask.updatedAt ?? new Date().toISOString(),
+            }));
+            setMessages(hydratedMessages);
+          } catch (err) {
+            console.error("Failed to load initial task", err);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to initialize tasks", err);
+      } finally {
+        setIsLoadingTasks(false);
+      }
+    }
+
+    void init();
+  }, []);
 
   const createTaskMutation = useMutation({
     mutationFn: ({ goal, type }: { goal: string; type: TaskType }) => createTask({ goal, type }),
     onSuccess: (task) => {
-      queryClient.setQueryData<Task[]>(["tasks"], (old = []) => [task, ...old]);
+      setTasks((prev) => [task, ...prev]);
       setSelectedTaskId(task.id);
+      setMessages([]);
+      window.localStorage.setItem("lastTaskId", task.id);
     },
   });
 
@@ -123,14 +131,10 @@ const App = () => {
         throw new Error("No task id available for this chat");
       }
 
-      const existingMessages = chatHistory[targetTaskId] ?? [];
-      const updatedMessages = [...existingMessages, userMessage];
+      const updatedMessages = [...messages, userMessage];
 
       // Show the user message immediately
-      setChatHistory((prev) => ({
-        ...prev,
-        [targetTaskId!]: updatedMessages,
-      }));
+      setMessages(updatedMessages);
 
       // Call the agent with taskId so backend can store memory
       const response = await sendAgentMessage(targetTaskId, updatedMessages);
@@ -142,24 +146,31 @@ const App = () => {
         timestamp: new Date().toISOString(),
       };
 
-      setChatHistory((prev) => {
-        const existing = prev[targetTaskId!] ?? updatedMessages;
-        return {
-          ...prev,
-          [targetTaskId!]: [...existing, assistantMessage],
-        };
-      });
+      const mergedMessages = [...updatedMessages, assistantMessage];
+      setMessages(mergedMessages);
+
+      window.localStorage.setItem("lastTaskId", targetTaskId);
+      setTasks((prev) =>
+        prev
+          .map((task) =>
+            task.id === targetTaskId
+              ? { ...task, updatedAt: new Date().toISOString() }
+              : task
+          )
+          .sort((a, b) =>
+            (b.updatedAt ?? b.createdAt ?? "") > (a.updatedAt ?? a.createdAt ?? "")
+              ? 1
+              : -1
+          )
+      );
 
       if (response.log) {
         setCollaborationLog(response.log);
       }
     } catch (error) {
       // Fallback: never leave the user hanging
-      const fallbackTaskId =
-        targetTaskId ?? selectedTaskId ?? `local-${Date.now()}`;
+      const fallbackTaskId = targetTaskId ?? selectedTaskId ?? `local-${Date.now()}`;
 
-      const existingMessages =
-        (fallbackTaskId && chatHistory[fallbackTaskId]) ?? [];
       const assistantMessage: ChatMessage = {
         id: crypto.randomUUID(),
         role: "assistant",
@@ -168,12 +179,9 @@ const App = () => {
         timestamp: new Date().toISOString(),
       };
 
-      const updatedMessages = [...existingMessages, userMessage, assistantMessage];
+      const updatedMessages = [...messages, userMessage, assistantMessage];
 
-      setChatHistory((prev) => ({
-        ...prev,
-        [fallbackTaskId]: updatedMessages,
-      }));
+      setMessages(updatedMessages);
 
       if (!selectedTaskId) {
         setSelectedTaskId(fallbackTaskId);
@@ -193,16 +201,35 @@ const App = () => {
       });
 
       setSelectedTaskId(task.id);
-      setChatHistory((prev) => ({
-        ...prev,
-        [task.id]: prev[task.id] ?? [],
-      }));
+      setMessages([]);
+      window.localStorage.setItem("lastTaskId", task.id);
     } catch (error) {
-      setSelectedTaskId(undefined);
+      setSelectedTaskId(null);
     }
   };
 
-  const activeMessages = selectedTaskId ? chatHistory[selectedTaskId] ?? [] : [];
+  const handleSelectTask = async (taskId: string) => {
+    setSelectedTaskId(taskId);
+    window.localStorage.setItem("lastTaskId", taskId);
+    try {
+      const fullTask = await fetchTaskById(taskId);
+      setTasks((prev) => {
+        const filtered = prev.filter((task) => task.id !== taskId);
+        return [fullTask, ...filtered].sort((a, b) =>
+          (b.updatedAt ?? b.createdAt ?? "") > (a.updatedAt ?? a.createdAt ?? "") ? 1 : -1
+        );
+      });
+      const hydratedMessages = (fullTask.messages ?? []).map((message, index) => ({
+        id: message.id ?? `${taskId}-${index}`,
+        role: message.role,
+        content: message.content,
+        timestamp: message.createdAt ?? fullTask.updatedAt ?? new Date().toISOString(),
+      }));
+      setMessages(hydratedMessages);
+    } catch (err) {
+      console.error("Failed to load task", err);
+    }
+  };
 
   const shouldShowTools = Boolean(
     selectedTaskId && (terminalLogs.length > 0 || !!previewHtml || tabs.length > 0 || collaborationLog)
@@ -213,14 +240,14 @@ const App = () => {
       <Sidebar
         tasks={tasks}
         selectedTaskId={selectedTaskId}
-        onSelect={setSelectedTaskId}
+        onSelect={handleSelectTask}
         onNewChat={handleNewChat}
-        isLoading={tasksLoading}
+        isLoading={isLoadingTasks}
       />
 
       <div className="flex-1 flex flex-col min-w-0">
         <ChatPanel
-          messages={activeMessages}
+          messages={messages}
           logs={terminalLogs}
           onSend={handleSendMessage}
           selectedTask={selectedTask}

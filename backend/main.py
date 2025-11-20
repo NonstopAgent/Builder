@@ -14,6 +14,7 @@ from backend.models import (
     CouncilDebateRequest,
     CouncilDebateResult,
     CreateTaskRequest,
+    Message,
     MessageRequest,
     MessageResponse,
     RequirementsSession,
@@ -92,10 +93,10 @@ def _ensure_session(session_id: str) -> None:
         SESSIONS_STORE[session_id] = []
 
 
-def _find_task(task_id: int) -> Task:
+def _find_task(task_id: str) -> Task:
     tasks = load_tasks()
     for t in tasks:
-        if t.id == task_id:
+        if str(t.id) == str(task_id):
             return t
     raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
 
@@ -336,10 +337,12 @@ async def create_task_with_council(request: Dict[str, Any]):
     debate_result = await council.conduct_debate(request["prd"])
 
     tasks = load_tasks()
-    next_id = max((t.id for t in tasks), default=0) + 1
+    numeric_ids = [int(t.id) for t in tasks if str(t.id).isdigit()]
+    next_id = str(max(numeric_ids) + 1) if numeric_ids else str(uuid.uuid4())
 
     task = Task(
         id=next_id,
+        title=request.get("goal"),
         type=request.get("type", "build"),
         goal=request["goal"],
         status="queued",
@@ -368,7 +371,7 @@ async def create_task_with_council(request: Dict[str, Any]):
 
 
 @app.get("/execution/{task_id}/status", response_model=Dict[str, Any])
-async def get_execution_status(task_id: int):
+async def get_execution_status(task_id: str):
     """
     Get real-time execution status with verification results.
     """
@@ -412,7 +415,7 @@ def health() -> Dict[str, Any]:
 
 
 class AgentChatRequest(BaseModel):
-    task_id: Optional[int] = None
+    task_id: Optional[str] = None
     messages: List[ConversationMessage]
 
 
@@ -434,12 +437,19 @@ async def agent_chat(request: AgentChatRequest) -> AgentOrchestrationResponse:
     if request.task_id is not None:
         tasks = load_tasks()
         for task in tasks:
-            if task.id == request.task_id:
+            if str(task.id) == str(request.task_id):
                 # Store the entire conversation plus the latest assistant reply
-                task.messages = [m.model_dump() for m in request.messages] + [
-                    {"role": "assistant", "content": response.reply}
+                task.messages = [
+                    Message(**m.model_dump()) for m in request.messages
+                ] + [
+                    Message(
+                        id=str(uuid.uuid4()),
+                        role="assistant",
+                        content=response.reply,
+                        created_at=datetime.utcnow(),
+                    )
                 ]
-                task.updated_at = datetime.utcnow().isoformat()
+                task.updated_at = datetime.utcnow()
                 upsert_task(task)
                 break
 
@@ -485,11 +495,13 @@ def get_session_state(session_id: str) -> Dict[str, Any]:
 
 
 @app.get("/tasks", response_model=List[Task])
-def list_all_tasks() -> List[Task]:
+async def list_all_tasks(limit: int = Query(30, ge=1, le=100)) -> List[Task]:
     """
-    Get all tasks across all sessions.
+    Get up to `limit` tasks ordered by most recently updated.
     """
-    return load_tasks()
+    tasks = load_tasks()
+    tasks.sort(key=lambda t: t.updated_at, reverse=True)
+    return tasks[:limit]
 
 
 @app.post("/tasks", response_model=Task)
@@ -498,10 +510,13 @@ def create_task_direct(request: CreateTaskRequest) -> Task:
     Create a new task without requiring a session.
     """
     tasks = load_tasks()
-    next_id = max((t.id for t in tasks), default=0) + 1
+
+    numeric_ids = [int(t.id) for t in tasks if str(t.id).isdigit()]
+    next_id = str(max(numeric_ids) + 1) if numeric_ids else str(uuid.uuid4())
 
     task = Task(
         id=next_id,
+        title=request.goal,
         type=request.type,
         goal=request.goal,
         project_id=request.project_id,
@@ -515,7 +530,7 @@ def create_task_direct(request: CreateTaskRequest) -> Task:
 
 
 @app.get("/tasks/{task_id}", response_model=Task)
-def get_task_direct(task_id: int) -> Task:
+async def get_task_direct(task_id: str) -> Task:
     """
     Get a specific task by ID.
     """
@@ -523,28 +538,28 @@ def get_task_direct(task_id: int) -> Task:
 
 
 @app.post("/tasks/{task_id}/run", response_model=Task)
-def run_task_direct(task_id: int) -> Task:
+def run_task_direct(task_id: str) -> Task:
     """
     Run a single planning/execution step on the task using the selected agent.
     """
     task = _find_task(task_id)
     agent = _get_agent()
 
-    task_payload = task.dict(by_alias=True)
+    task_payload = task.dict()
     updated_payload = agent.execute_task(task_payload)  # type: ignore[arg-type]
     updated_task = Task(**updated_payload)
     return _update_and_save_task(updated_task)
 
 
 @app.post("/tasks/{task_id}/run-all", response_model=Task)
-def run_task_all_direct(task_id: int) -> Task:
+def run_task_all_direct(task_id: str) -> Task:
     """
     Run the task until completion, calling the agent in a loop.
     """
     task = _find_task(task_id)
     agent = _get_agent()
 
-    task_payload = task.dict(by_alias=True)
+    task_payload = task.dict()
     while task_payload.get("status") not in ("completed", "failed"):
         task_payload = agent.execute_task(task_payload)  # type: ignore[arg-type]
     updated_task = Task(**task_payload)
@@ -562,7 +577,7 @@ def run_all_tasks() -> Dict[str, Any]:
 
     for task in tasks:
         if task.status in ("queued", "in_progress"):
-            task_payload = task.dict(by_alias=True)
+            task_payload = task.dict()
             while task_payload.get("status") not in ("completed", "failed"):
                 task_payload = agent.execute_task(task_payload)  # type: ignore[arg-type]
             updated_task = Task(**task_payload)
@@ -573,7 +588,7 @@ def run_all_tasks() -> Dict[str, Any]:
 
 
 @app.get("/tasks/{task_id}/steps")
-def get_task_steps_direct(task_id: int) -> Dict[str, Any]:
+def get_task_steps_direct(task_id: str) -> Dict[str, Any]:
     """
     Get the steps/plan for a specific task.
     """
@@ -582,7 +597,7 @@ def get_task_steps_direct(task_id: int) -> Dict[str, Any]:
 
 
 @app.get("/tasks/{task_id}/logs")
-def get_task_logs_direct(task_id: int) -> List[str]:
+def get_task_logs_direct(task_id: str) -> List[str]:
     """
     Get logs for a specific task.
     """
@@ -613,10 +628,12 @@ def create_task(session_id: str, request: CreateTaskRequest) -> Task:
     """
     _ensure_session(session_id)
     tasks = load_tasks()
-    next_id = max((t.id for t in tasks), default=0) + 1
+    numeric_ids = [int(t.id) for t in tasks if str(t.id).isdigit()]
+    next_id = str(max(numeric_ids) + 1) if numeric_ids else str(uuid.uuid4())
 
     task = Task(
         id=next_id,
+        title=request.goal,
         type=request.type,
         goal=request.goal,
         project_id=request.project_id,
@@ -630,13 +647,13 @@ def create_task(session_id: str, request: CreateTaskRequest) -> Task:
 
 
 @app.get("/session/{session_id}/tasks/{task_id}", response_model=Task)
-def get_task(session_id: str, task_id: int) -> Task:
+def get_task(session_id: str, task_id: str) -> Task:
     _ensure_session(session_id)
     return _find_task(task_id)
 
 
 @app.post("/session/{session_id}/tasks/{task_id}/run", response_model=Task)
-def run_task_once(session_id: str, task_id: int) -> Task:
+def run_task_once(session_id: str, task_id: str) -> Task:
     """
     Run a single planning/execution step on the task using the selected agent.
     """
@@ -644,14 +661,14 @@ def run_task_once(session_id: str, task_id: int) -> Task:
     task = _find_task(task_id)
     agent = _get_agent()
 
-    task_payload = task.dict(by_alias=True)
+    task_payload = task.dict()
     updated_payload = agent.execute_task(task_payload)  # type: ignore[arg-type]
     updated_task = Task(**updated_payload)
     return _update_and_save_task(updated_task)
 
 
 @app.post("/session/{session_id}/tasks/{task_id}/run_all", response_model=Task)
-def run_task_all(session_id: str, task_id: int) -> Task:
+def run_task_all(session_id: str, task_id: str) -> Task:
     """
     Run the task until completion, calling the agent in a loop.
     """
@@ -659,7 +676,7 @@ def run_task_all(session_id: str, task_id: int) -> Task:
     task = _find_task(task_id)
     agent = _get_agent()
 
-    task_payload = task.dict(by_alias=True)
+    task_payload = task.dict()
     while task_payload.get("status") not in ("completed", "failed"):
         task_payload = agent.execute_task(task_payload)  # type: ignore[arg-type]
     updated_task = Task(**task_payload)
@@ -667,14 +684,14 @@ def run_task_all(session_id: str, task_id: int) -> Task:
 
 
 @app.get("/session/{session_id}/tasks/{task_id}/plan")
-def get_task_plan(session_id: str, task_id: int) -> Dict[str, Any]:
+def get_task_plan(session_id: str, task_id: str) -> Dict[str, Any]:
     _ensure_session(session_id)
     task = _find_task(task_id)
     return {"plan": [step.dict() for step in task.plan]}
 
 
 @app.get("/session/{session_id}/tasks/{task_id}/logs")
-def get_task_logs(session_id: str, task_id: int) -> Dict[str, Any]:
+def get_task_logs(session_id: str, task_id: str) -> Dict[str, Any]:
     _ensure_session(session_id)
     task = _find_task(task_id)
 

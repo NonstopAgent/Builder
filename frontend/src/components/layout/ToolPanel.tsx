@@ -10,7 +10,7 @@ type Tab = (typeof tabs)[number];
 interface ToolPanelProps {
   previewHtml?: string;
   terminalLogs: string[];
-  selectedTaskId?: string;
+  selectedTaskId?: string | null;
   collaborationLog?: string;
 }
 
