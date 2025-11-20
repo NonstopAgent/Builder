@@ -1,24 +1,18 @@
-import { apiClient } from "./client";
-import { ChatMessage } from "../types";
+import { BACKEND_URL } from "./config";
+import type { AgentRequest, AgentResponse } from "../types";
 
-export type AgentMode = "simple" | "collab";
-
-export interface AgentResponse {
-  mode: AgentMode;
-  reply: string;
-  log?: string;
-}
-
-// 🔥 Attach taskId so backend can store messages under that task
 export async function sendAgentMessage(
-  taskId: string,
-  messages: ChatMessage[]
+  payload: AgentRequest
 ): Promise<AgentResponse> {
-  const payload = {
-    task_id: taskId,
-    messages: messages.map(({ role, content }) => ({ role, content })),
-  };
+  const res = await fetch(`${BACKEND_URL}/agent`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
 
-  const { data } = await apiClient.post<AgentResponse>("/agent", payload);
-  return data;
+  if (!res.ok) {
+    throw new Error(`Agent request failed with status ${res.status}`);
+  }
+
+  return res.json();
 }
