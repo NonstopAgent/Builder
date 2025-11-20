@@ -561,6 +561,12 @@ async def agent_chat(request: AgentChatRequest) -> AgentOrchestrationResponse:
                         created_at=datetime.utcnow(),
                     )
                 ]
+
+                # 🔥 Persist the rich collaboration / plan log if present
+                if getattr(response, "log", None):
+                    task.collaboration_log = response.log
+                    log_line = f"[{datetime.utcnow().isoformat()}] Updated collaboration plan."
+                    task.logs.append(log_line)
                 task.updated_at = datetime.utcnow()
                 upsert_task(task)
                 break

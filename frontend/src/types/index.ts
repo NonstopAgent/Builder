@@ -38,6 +38,7 @@ export interface Task {
   createdAt?: string;
   updatedAt?: string;
   logs?: string[];
+  collaborationLog?: string;
   messages?: Message[];
 }
 
