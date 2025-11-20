@@ -1,12 +1,11 @@
+import { BACKEND_URL } from "./config";
 import { MemoryItem } from "../types";
-
-const BASE_URL = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:8000";
 
 export async function fetchMemory(taskId: string | null): Promise<MemoryItem[]> {
   const url =
     taskId != null
-      ? `${BASE_URL}/memory?task_id=${encodeURIComponent(taskId)}`
-      : `${BASE_URL}/memory`;
+      ? `${BACKEND_URL}/memory?task_id=${encodeURIComponent(taskId)}`
+      : `${BACKEND_URL}/memory`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Failed to fetch memory: ${res.status}`);
   return res.json();
@@ -22,7 +21,7 @@ interface CreateMemoryPayload {
 export async function createMemory(
   payload: CreateMemoryPayload
 ): Promise<MemoryItem> {
-  const res = await fetch(`${BASE_URL}/memory`, {
+  const res = await fetch(`${BACKEND_URL}/memory`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),

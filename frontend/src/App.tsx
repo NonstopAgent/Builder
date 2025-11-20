@@ -138,7 +138,10 @@ const App = () => {
       setMessages(updatedMessages);
 
       // Call the agent with taskId so backend can store memory
-      const response = await sendAgentMessage(targetTaskId, updatedMessages);
+      const response = await sendAgentMessage({
+        task_id: targetTaskId,
+        messages: updatedMessages.map(({ role, content }) => ({ role, content })),
+      });
 
       const assistantMessage: ChatMessage = {
         id: crypto.randomUUID(),

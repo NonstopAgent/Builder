@@ -62,6 +62,19 @@ export interface ChatMessage {
   timestamp: string;
 }
 
+export type AgentMode = "simple" | "collab";
+
+export interface AgentRequest {
+  task_id: string;
+  messages: { role: ChatMessage["role"]; content: string }[];
+}
+
+export interface AgentResponse {
+  mode: AgentMode;
+  reply: string;
+  log?: string;
+}
+
 export interface ClarifyingQuestion {
   id: string;
   prompt: string;
