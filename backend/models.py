@@ -103,6 +103,16 @@ class Task(BaseModel):
         allow_population_by_field_name = True
 
 
+class MemoryItem(BaseModel):
+    id: str
+    task_id: Optional[str] = None  # None = global memory
+    content: str
+    tags: List[str] = Field(default_factory=list)
+    importance: str = "normal"  # e.g. "low", "normal", "high"
+    created_at: datetime
+    last_used_at: Optional[datetime] = None
+
+
 class MessageRequest(BaseModel):
     session_id: str
     message: str

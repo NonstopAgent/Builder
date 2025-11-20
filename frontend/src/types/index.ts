@@ -18,6 +18,16 @@ export interface Message {
   createdAt?: string;
 }
 
+export interface MemoryItem {
+  id: string;
+  task_id?: string | null;
+  content: string;
+  tags: string[];
+  importance: "low" | "normal" | "high" | string;
+  created_at: string;
+  last_used_at?: string | null;
+}
+
 export interface Task {
   id: string;
   title?: string;
