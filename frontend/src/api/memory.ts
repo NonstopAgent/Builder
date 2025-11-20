@@ -1,7 +1,7 @@
 import { BACKEND_URL } from "./config";
-import { MemoryItem } from "../types";
+import type { MemoryItem } from "../types";
 
-export async function fetchMemory(taskId: string | null): Promise<MemoryItem[]> {
+export async function fetchMemory(taskId?: string | null): Promise<MemoryItem[]> {
   const url =
     taskId != null
       ? `${BACKEND_URL}/memory?task_id=${encodeURIComponent(taskId)}`
