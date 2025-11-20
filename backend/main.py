@@ -1,9 +1,9 @@
 import os
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Body, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
 from pydantic import BaseModel
@@ -14,6 +14,7 @@ from backend.models import (
     CouncilDebateRequest,
     CouncilDebateResult,
     CreateTaskRequest,
+    MemoryItem,
     MessageRequest,
     MessageResponse,
     RequirementsSession,
@@ -31,6 +32,7 @@ from backend.storage import load_tasks, save_tasks, upsert_task
 from backend.agents.super_builder import get_agent as get_super_builder_agent
 from backend.agents.claude_agent import get_agent as get_claude_agent
 from backend.utils.file_ops import WORKSPACE_DIR, list_dir, read_file
+from uuid import uuid4
 
 APP_VERSION = "0.2.0"
 
@@ -80,6 +82,7 @@ app.add_middleware(
 SESSIONS_STORE: Dict[str, List[Dict[str, str]]] = {}
 REQUIREMENTS_SESSIONS: Dict[str, RequirementsSession] = {}
 COUNCIL_DEBATES: Dict[str, CouncilDebateResult] = {}
+MEMORY_STORE: dict[str, MemoryItem] = {}
 
 
 # --------------------------------------------------------------------------- #
@@ -105,9 +108,93 @@ def _update_and_save_task(updated_task: Task) -> Task:
     return updated_task
 
 
+def add_memory_item(
+    content: str,
+    task_id: str | None = None,
+    tags: list[str] | None = None,
+    importance: str = "normal",
+) -> MemoryItem:
+    mem = MemoryItem(
+        id=str(uuid4()),
+        task_id=task_id,
+        content=content,
+        tags=tags or [],
+        importance=importance,
+        created_at=datetime.utcnow(),
+        last_used_at=None,
+    )
+    MEMORY_STORE[mem.id] = mem
+    return mem
+
+
+def list_memory_items(task_id: str | None = None) -> list[MemoryItem]:
+    items: Iterable[MemoryItem] = MEMORY_STORE.values()
+    if task_id is not None:
+        items = [m for m in items if m.task_id == task_id or m.task_id is None]
+    return sorted(items, key=lambda m: m.created_at, reverse=True)
+
+
+def search_memory_items(query: str, task_id: str | None = None) -> list[MemoryItem]:
+    query_lower = query.lower()
+    items = list_memory_items(task_id=task_id)
+    results: list[MemoryItem] = []
+    for item in items:
+        haystack = " ".join([item.content] + item.tags).lower()
+        if query_lower in haystack:
+            results.append(item)
+    return results
+
+
 # --------------------------------------------------------------------------- #
 # Requirements gathering
 # --------------------------------------------------------------------------- #
+
+
+@app.get("/memory", response_model=List[MemoryItem])
+async def get_memory(task_id: Optional[str] = None) -> List[MemoryItem]:
+    """
+    List memory items. If task_id is provided, return task-specific
+    + global items. Otherwise return all memory.
+    """
+
+    return list_memory_items(task_id=task_id)
+
+
+class MemoryCreateRequest(BaseModel):
+    task_id: Optional[str] = None
+    content: str
+    tags: List[str] = []
+    importance: str = "normal"
+
+
+@app.post("/memory", response_model=MemoryItem)
+async def create_memory(payload: MemoryCreateRequest = Body(...)) -> MemoryItem:
+    """
+    Create a new memory item. Used when the user clicks 'Save to memory'
+    from the UI.
+    """
+
+    mem = add_memory_item(
+        content=payload.content,
+        task_id=payload.task_id,
+        tags=payload.tags,
+        importance=payload.importance,
+    )
+    return mem
+
+
+class MemorySearchRequest(BaseModel):
+    task_id: Optional[str] = None
+    query: str
+
+
+@app.post("/memory/search", response_model=List[MemoryItem])
+async def search_memory(payload: MemorySearchRequest) -> List[MemoryItem]:
+    """
+    Naive text search over memory content + tags.
+    """
+
+    return search_memory_items(query=payload.query, task_id=payload.task_id)
 
 
 @app.post("/requirements/start", response_model=Dict[str, Any])
@@ -425,8 +512,33 @@ async def agent_chat(request: AgentChatRequest) -> AgentOrchestrationResponse:
     Now also attaches the conversation and reply to a Task if task_id is provided,
     so chats are persisted across refreshes.
     """
+    messages_for_llm: List[ConversationMessage] = []
+
+    if request.task_id is not None:
+        task_id_str = str(request.task_id)
+        relevant_memory = list_memory_items(task_id=task_id_str)[:10]
+
+        memory_preamble = ""
+        if relevant_memory:
+            memory_lines = []
+            for item in relevant_memory:
+                memory_lines.append(f"- {item.content}")
+                item.last_used_at = datetime.utcnow()
+            memory_preamble = (
+                "Here are important notes and context you should remember about this user and task:\n"
+                + "\n".join(memory_lines)
+                + "\n\n"
+            )
+
+        if memory_preamble:
+            messages_for_llm.append(
+                ConversationMessage(role="system", content=memory_preamble)
+            )
+
+    messages_for_llm.extend(request.messages)
+
     try:
-        response = await orchestrate(request.messages)
+        response = await orchestrate(messages_for_llm)
     except httpx.HTTPStatusError as exc:
         raise HTTPException(status_code=exc.response.status_code, detail=exc.response.text)
 
