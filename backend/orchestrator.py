@@ -43,7 +43,7 @@ async def orchestrate(messages: List[ConversationMessage]) -> AgentOrchestration
 
 async def _detect_intent(user_text: str, openai_key: str, client: httpx.AsyncClient) -> str:
     payload = {
-        "model": "gpt-4.1-mini",
+        "model": "gpt-4o-mini",
         "messages": [
             {
                 "role": "system",
@@ -72,7 +72,7 @@ async def _openai_chat(
     messages: List[ConversationMessage], openai_key: str, client: httpx.AsyncClient
 ) -> str:
     payload = {
-        "model": "gpt-4.1",
+        "model": "gpt-4o",
         "messages": [m.model_dump() for m in messages],
     }
 
@@ -108,7 +108,7 @@ async def _openai_plan_for_claude(
     user_message: str, openai_key: str, client: httpx.AsyncClient
 ) -> str:
     payload = {
-        "model": "gpt-4.1",
+        "model": "gpt-4o",
         "messages": [
             {
                 "role": "system",
@@ -173,7 +173,7 @@ async def _openai_final_build(
     user_message: str, plan: str, claude_notes: str, openai_key: str, client: httpx.AsyncClient
 ) -> str:
     payload = {
-        "model": "gpt-4.1",
+        "model": "gpt-4o",
         "messages": [
             {
                 "role": "system",
