@@ -1,8 +1,4 @@
 // frontend/src/api/config.ts
 
-// Prefer VITE_API_URL (what you have set in Vercel),
-// but also support VITE_BACKEND_URL just in case.
-export const BACKEND_URL =
-  import.meta.env.VITE_API_URL ??
-  import.meta.env.VITE_BACKEND_URL ??
-  "http://localhost:8000";
+// We are hardcoding the Railway URL to guarantee connection across all Vercel environments.
+export const BACKEND_URL = "https://builder-production-3ed2.up.railway.app";
