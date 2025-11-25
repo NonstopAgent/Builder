@@ -1,6 +1,6 @@
 [
   {
-    "id": 1,
+    "id": "1",
     "type": "build",
     "goal": "Bootstrap the repository structure.",
     "project_id": null,
@@ -18,7 +18,7 @@
     }
   },
   {
-    "id": 2,
+    "id": "2",
     "type": "build",
     "goal": "Implement core backend APIs.",
     "project_id": null,
@@ -36,7 +36,7 @@
     }
   },
   {
-    "id": 3,
+    "id": "3",
     "type": "build",
     "goal": "Integrate agent planning and tools.",
     "project_id": null,
@@ -54,7 +54,7 @@
     }
   },
   {
-    "id": 4,
+    "id": "4",
     "type": "build",
     "goal": "Build the frontend UI.",
     "project_id": null,
@@ -72,7 +72,7 @@
     }
   },
   {
-    "id": 5,
+    "id": "5",
     "type": "build",
     "goal": "Develop the autonomy engine.",
     "project_id": null,
@@ -90,7 +90,7 @@
     }
   },
   {
-    "id": 6,
+    "id": "6",
     "type": "build",
     "goal": "Create hello world script",
     "project_id": null,
@@ -106,7 +106,7 @@
     "metadata": {}
   },
   {
-    "id": 7,
+    "id": "7",
     "type": "build",
     "goal": "Generate a simple plan",
     "project_id": null,
@@ -150,7 +150,7 @@
     "metadata": {}
   },
   {
-    "id": 8,
+    "id": "8",
     "type": "build",
     "goal": "Run to completion",
     "project_id": null,
@@ -200,7 +200,7 @@
     "metadata": {}
   },
   {
-    "id": 9,
+    "id": "9",
     "type": "build",
     "goal": "Session-based task",
     "project_id": null,
