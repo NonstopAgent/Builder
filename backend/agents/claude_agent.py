@@ -150,11 +150,58 @@ class ClaudeAgent:
         Execute a step using real file operations and tools.
         """
         from backend.utils.file_ops import list_dir, read_file, write_file
+        from backend.tools.github import GitHubTools
 
         description = step.get("description", "").lower()
         step_logs = step.get("logs", [])
 
-        if "create" in description and "file" in description:
+        # Check for GitHub-specific tasks
+        if "github" in description:
+            gh_tools = GitHubTools()
+
+            # Simple heuristic for now - can be replaced with LLM decision
+            # Update regex to support owner/repo (including slash)
+            repo_match = re.search(r"repo\s+([\w\-\.]+/?[\w\-\.]*)", description)
+
+            if "read" in description:
+                # Expecting description like "Read file x from repo y"
+                file_match = re.search(r"file\s+([\w\-\./]+)", description)
+                if repo_match and file_match:
+                    content = gh_tools.read_file(repo_match.group(1), file_match.group(1))
+                    step["result"] = f"GitHub Read Result: {content[:100]}..."
+                    step_logs.append(f"Read GitHub file {file_match.group(1)}")
+                else:
+                    step["result"] = "Could not parse repo or file from description"
+
+            elif "commit" in description or "update" in description:
+                 # Expecting description like "Update file x in repo y with message z"
+                 file_match = re.search(r"file\s+([\w\-\./]+)", description)
+                 if repo_match and file_match:
+                     # For content, we'd typically ask the LLM to generate it, but here we assume
+                     # the agent has already generated content or we need to ask for it.
+                     # For this simple "tool use" step, let's ask Claude to generate the content to be written.
+
+                     system_prompt = "You are a coding assistant. Generate the file content to be committed."
+                     user_prompt = f"Goal: {task_goal}\nStep: {description}\n\nProvide only the file content."
+                     content = self._call_claude(system_prompt, user_prompt)
+
+                     if content:
+                         msg = f"Update {file_match.group(1)}" # Simple commit message
+                         res = gh_tools.update_file(repo_match.group(1), file_match.group(1), content, msg)
+                         step["result"] = res
+                         step_logs.append(res)
+                     else:
+                         step["result"] = "Failed to generate content for commit"
+                 else:
+                     step["result"] = "Could not parse repo or file for commit"
+
+            elif "create pr" in description or "pull request" in description:
+                 # This needs more params, would be better served by a structured tool call
+                 step["result"] = "PR creation requires more structured input"
+            # Add more specific handlers as needed
+
+        # Fallback to local file ops (existing logic)
+        elif "create" in description and "file" in description:
             system_prompt = (
                 "You are a code generation assistant. Generate clean, well-documented code "
                 "based on the step description and overall goal."

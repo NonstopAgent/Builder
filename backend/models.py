@@ -15,6 +15,15 @@ import uuid
 from pydantic import BaseModel, Field
 
 
+class Project(BaseModel):
+    """Represents a high-level project (group of tasks)."""
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    description: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    status: str = "active"  # active, archived
+
+
 class CreateTaskRequest(BaseModel):
     """Request body for creating a new task."""
 
@@ -67,7 +76,7 @@ class Task(BaseModel):
     project_id: Optional[str] = None
     status: str = Field(default="queued", description="Overall task status")
     plan: List[Step] = Field(default_factory=list, description="Ordered list of plan steps")
-    current_step: int = Field(default=0, description="Index of the current step in the plan")
+    current_step: Optional[int] = Field(default=0, description="Index of the current step in the plan")
     created_at: datetime = Field(
         default_factory=datetime.utcnow,
         alias="createdAt",

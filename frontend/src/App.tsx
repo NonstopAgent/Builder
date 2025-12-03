@@ -6,11 +6,13 @@ import { useUIStore } from "./store/useStore";
 import { Sidebar } from "./components/layout/Sidebar";
 import { ChatPanel } from "./components/layout/ChatPanel";
 import { ToolPanel } from "./components/layout/ToolPanel";
-import { PanelRightClose, PanelRightOpen } from "lucide-react";
+import { ProjectDashboard } from "./components/ProjectDashboard";
+import { PanelRightClose, PanelRightOpen, FolderKanban } from "lucide-react";
 import "./index.css";
 
 const App = () => {
-  const { tabs } = useUIStore();
+  const { tabs, currentProjectId } = useUIStore();
+  const [viewMode, setViewMode] = useState<"chat" | "projects">("chat");
   const [tasks, setTasks] = useState<Task[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [isLoadingTasks, setIsLoadingTasks] = useState(false);
@@ -248,42 +250,72 @@ const App = () => {
   );
 
   return (
-    <div className="relative h-screen w-screen bg-slate-950 text-slate-100 flex overflow-hidden">
-      <Sidebar
-        tasks={tasks}
-        selectedTaskId={selectedTaskId}
-        onSelect={handleSelectTask}
-        onNewChat={handleNewChat}
-        isLoading={isLoadingTasks}
-      />
+    <div className="relative h-screen w-screen bg-slate-950 text-slate-100 flex flex-col overflow-hidden">
+        {/* Top Navigation Bar */}
+        <div className="h-12 border-b border-gray-800 bg-gray-950 flex items-center px-4 justify-between shrink-0">
+            <div className="font-bold text-lg flex items-center gap-2">
+                SuperBuilder
+            </div>
+            <div className="flex gap-4">
+                <button
+                    onClick={() => setViewMode("chat")}
+                    className={`px-3 py-1 rounded text-sm ${viewMode === "chat" ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white"}`}
+                >
+                    Chat
+                </button>
+                 <button
+                    onClick={() => setViewMode("projects")}
+                    className={`px-3 py-1 rounded text-sm flex items-center gap-2 ${viewMode === "projects" ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white"}`}
+                >
+                    <FolderKanban size={16} />
+                    Projects
+                </button>
+            </div>
+        </div>
 
-      <div className="flex-1 flex flex-col min-w-0">
-        <ChatPanel
-          messages={messages}
-          logs={terminalLogs}
-          onSend={handleSendMessage}
-          selectedTask={selectedTask}
-        />
-      </div>
+      {viewMode === "projects" ? (
+         <div className="flex-1 overflow-hidden">
+             <ProjectDashboard />
+         </div>
+      ) : (
+          <div className="flex-1 flex overflow-hidden">
+              <Sidebar
+                tasks={tasks}
+                selectedTaskId={selectedTaskId}
+                onSelect={handleSelectTask}
+                onNewChat={handleNewChat}
+                isLoading={isLoadingTasks}
+              />
 
-      {shouldShowTools && toolsOpen && (
-        <ToolPanel
-          previewHtml={previewHtml}
-          terminalLogs={terminalLogs}
-          selectedTaskId={selectedTaskId}
-          selectedTask={selectedTask ?? undefined}
-          collaborationLog={collaborationLog}
-        />
-      )}
+              <div className="flex-1 flex flex-col min-w-0">
+                <ChatPanel
+                  messages={messages}
+                  logs={terminalLogs}
+                  onSend={handleSendMessage}
+                  selectedTask={selectedTask}
+                />
+              </div>
 
-      {shouldShowTools && (
-        <button
-          onClick={() => setToolsOpen((prev) => !prev)}
-          className="absolute right-3 top-1/2 -translate-y-1/2 z-20 h-10 w-10 rounded-full border border-slate-700 bg-slate-950/90 shadow-lg flex items-center justify-center hover:bg-slate-900 hover:border-sky-500 text-slate-300 hover:text-sky-400 transition-colors"
-          title={toolsOpen ? "Hide tools" : "Show tools"}
-        >
-          {toolsOpen ? <PanelRightClose size={18} /> : <PanelRightOpen size={18} />}
-        </button>
+              {shouldShowTools && toolsOpen && (
+                <ToolPanel
+                  previewHtml={previewHtml}
+                  terminalLogs={terminalLogs}
+                  selectedTaskId={selectedTaskId}
+                  selectedTask={selectedTask ?? undefined}
+                  collaborationLog={collaborationLog}
+                />
+              )}
+
+              {shouldShowTools && (
+                <button
+                  onClick={() => setToolsOpen((prev) => !prev)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 z-20 h-10 w-10 rounded-full border border-slate-700 bg-slate-950/90 shadow-lg flex items-center justify-center hover:bg-slate-900 hover:border-sky-500 text-slate-300 hover:text-sky-400 transition-colors"
+                  title={toolsOpen ? "Hide tools" : "Show tools"}
+                >
+                  {toolsOpen ? <PanelRightClose size={18} /> : <PanelRightOpen size={18} />}
+                </button>
+              )}
+          </div>
       )}
     </div>
   );
