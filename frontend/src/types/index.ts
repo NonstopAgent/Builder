@@ -75,6 +75,14 @@ export interface AgentResponse {
   log?: string;
 }
 
+export interface Project {
+  id: string;
+  name: string;
+  description?: string;
+  created_at?: string;
+  status: "active" | "archived";
+}
+
 export interface ClarifyingQuestion {
   id: string;
   prompt: string;

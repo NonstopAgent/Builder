@@ -150,11 +150,60 @@ class ClaudeAgent:
         Execute a step using real file operations and tools.
         """
         from backend.utils.file_ops import list_dir, read_file, write_file
+        from backend.tools.github import GitHubTools
 
-        description = step.get("description", "").lower()
+        description = step.get("description", "")
         step_logs = step.get("logs", [])
 
-        if "create" in description and "file" in description:
+        # Check for GitHub-specific tasks
+        if "github" in description.lower():
+            gh_tools = GitHubTools()
+
+            # Simple heuristic for now - can be replaced with LLM decision
+            # Update regex to support owner/repo (including slash)
+            repo_match = re.search(r"repo\s+([\w\-\.]+/?[\w\-\.]*)", description, re.IGNORECASE)
+            logger.info(f"GitHub task detected. Description: {description}")
+            logger.info(f"Repo match: {repo_match.group(1) if repo_match else 'None'}")
+
+            if "read" in description.lower():
+                # Expecting description like "Read file x from repo y"
+                file_match = re.search(r"file\s+([\w\-\./]+)", description, re.IGNORECASE)
+                if repo_match and file_match:
+                    content = gh_tools.read_file(repo_match.group(1), file_match.group(1))
+                    step["result"] = f"GitHub Read Result: {content[:100]}..."
+                    step_logs.append(f"Read GitHub file {file_match.group(1)}")
+                else:
+                    step["result"] = "Could not parse repo or file from description"
+
+            elif "commit" in description.lower() or "update" in description.lower():
+                 # Expecting description like "Update file x in repo y with message z"
+                 file_match = re.search(r"file\s+([\w\-\./]+)", description, re.IGNORECASE)
+                 if repo_match and file_match:
+                     # For content, we'd typically ask the LLM to generate it, but here we assume
+                     # the agent has already generated content or we need to ask for it.
+                     # For this simple "tool use" step, let's ask Claude to generate the content to be written.
+
+                     system_prompt = "You are a coding assistant. Generate the file content to be committed."
+                     user_prompt = f"Goal: {task_goal}\nStep: {description}\n\nProvide only the file content."
+                     content = self._call_claude(system_prompt, user_prompt)
+
+                     if content:
+                         msg = f"Update {file_match.group(1)}" # Simple commit message
+                         res = gh_tools.update_file(repo_match.group(1), file_match.group(1), content, msg)
+                         step["result"] = res
+                         step_logs.append(res)
+                     else:
+                         step["result"] = "Failed to generate content for commit"
+                 else:
+                     step["result"] = "Could not parse repo or file for commit"
+
+            elif "create pr" in description.lower() or "pull request" in description.lower():
+                 # This needs more params, would be better served by a structured tool call
+                 step["result"] = "PR creation requires more structured input"
+            # Add more specific handlers as needed
+
+        # Fallback to local file ops (existing logic)
+        elif "create" in description.lower() and "file" in description.lower():
             system_prompt = (
                 "You are a code generation assistant. Generate clean, well-documented code "
                 "based on the step description and overall goal."
@@ -187,7 +236,7 @@ class ClaudeAgent:
                 step["result"] = "Could not generate file content (Claude unavailable)"
                 step_logs.append("Warning: File generation skipped")
 
-        elif "read" in description and "file" in description:
+        elif "read" in description.lower() and "file" in description.lower():
             filename = self._extract_filename(step["description"])
             if filename:
                 try:
@@ -202,7 +251,7 @@ class ClaudeAgent:
                 step["result"] = "Could not determine which file to read"
                 step_logs.append("Warning: Filename not found in description")
 
-        elif "list" in description or "explore" in description:
+        elif "list" in description.lower() or "explore" in description.lower():
             try:
                 entries = list_dir("")
                 step["result"] = f"Found {len(entries)} items in workspace"

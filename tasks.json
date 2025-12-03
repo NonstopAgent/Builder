@@ -1,38 +1,237 @@
 [
   {
-    "id": "1",
+    "id": "c11d5172-5584-4234-9d76-79f4e6de14eb",
+    "title": "Create hello world script",
     "type": "build",
-    "goal": "Bootstrap the repository structure.",
+    "goal": "Create hello world script",
     "project_id": null,
-    "status": "done",
-    "plan": [],
-    "current_step": 0,
-    "created_at": "2024-01-01T00:00:00Z",
-    "updated_at": "2024-01-01T00:00:00Z",
+    "status": "completed",
+    "plan": [
+      {
+        "description": "Analyze the goal and clarify requirements for: Create hello world script",
+        "status": "completed",
+        "result": "Completed step: Analyze the goal and clarify requirements for: Create hello world script",
+        "logs": [
+          "Step completed (no specific actions)"
+        ],
+        "error": null,
+        "metadata": {}
+      },
+      {
+        "description": "Design and implement a solution for: Create hello world script",
+        "status": "completed",
+        "result": "Completed step: Design and implement a solution for: Create hello world script",
+        "logs": [
+          "Step completed (no specific actions)"
+        ],
+        "error": null,
+        "metadata": {}
+      },
+      {
+        "description": "Test, review, and refine the solution for: Create hello world script",
+        "status": "completed",
+        "result": "Completed step: Test, review, and refine the solution for: Create hello world script",
+        "logs": [
+          "Step completed (no specific actions)"
+        ],
+        "error": null,
+        "metadata": {}
+      }
+    ],
+    "current_step": null,
+    "createdAt": "2025-12-03 22:11:36.083646",
+    "updatedAt": "2025-12-03 22:11:36.083648",
     "logs": [
-      "Task imported from initial checklist."
+      "Task created.",
+      "[2025-12-03T22:11:33.077398Z] Plan created with 3 steps by ClaudeAgent.",
+      "[2025-12-03T22:11:34.079516Z] Completed step 1: Analyze the goal and clarify requirements for: Create hello world script",
+      "[2025-12-03T22:11:35.081579Z] Completed step 2: Design and implement a solution for: Create hello world script",
+      "[2025-12-03T22:11:36.083612Z] Completed step 3: Test, review, and refine the solution for: Create hello world script",
+      "[2025-12-03T22:11:36.083618Z] All steps completed by ClaudeAgent."
     ],
     "error": null,
-    "metadata": {
-      "notes": "Create folders /backend, /frontend, /workspace, /plans. Initialize tasks.json, README.md, .gitignore. Add package managers etc."
-    }
+    "metadata": {},
+    "messages": [],
+    "collaborationLog": null
   },
   {
-    "id": "2",
+    "id": "6761e1d3-3f0d-4489-ba61-3a1c3ca9485e",
+    "title": "Generate a simple plan",
     "type": "build",
-    "goal": "Implement core backend APIs.",
+    "goal": "Generate a simple plan",
     "project_id": null,
-    "status": "in_progress",
-    "plan": [],
-    "current_step": 0,
-    "created_at": "2024-01-02T00:00:00Z",
-    "updated_at": "2024-01-02T00:00:00Z",
+    "status": "completed",
+    "plan": [
+      {
+        "description": "Analyze the goal: Generate a simple plan",
+        "status": "completed",
+        "result": "Executed step: Analyze the goal: Generate a simple plan",
+        "logs": [
+          "Executed step: Analyze the goal: Generate a simple plan"
+        ],
+        "error": null,
+        "metadata": null
+      },
+      {
+        "description": "Design and implement a solution for: Generate a simple plan",
+        "status": "completed",
+        "result": "Completed step: Design and implement a solution for: Generate a simple plan",
+        "logs": [
+          "Step completed (no specific actions)"
+        ],
+        "error": null,
+        "metadata": null
+      },
+      {
+        "description": "Test and review the solution for: Generate a simple plan",
+        "status": "completed",
+        "result": "Completed step: Test and review the solution for: Generate a simple plan",
+        "logs": [
+          "Step completed (no specific actions)"
+        ],
+        "error": null,
+        "metadata": null
+      }
+    ],
+    "current_step": null,
+    "createdAt": "2025-12-03 22:11:30.071054",
+    "updatedAt": "2025-12-03 22:11:30.071056",
     "logs": [
-      "Imported from initial checklist."
+      "Task created.",
+      "Executed step: Analyze the goal: Generate a simple plan",
+      "[2025-12-03T22:10:46.508098Z] Completed step 2: Design and implement a solution for: Generate a simple plan",
+      "[2025-12-03T22:11:30.070980Z] Completed step 3: Test and review the solution for: Generate a simple plan",
+      "[2025-12-03T22:11:30.070987Z] All steps completed by ClaudeAgent."
     ],
     "error": null,
-    "metadata": {
-      "notes": "Define FastAPI routes for sessions and messages, integrate task queue persistence, council endpoints, tool actions, worker logic."
-    }
+    "metadata": {},
+    "messages": [],
+    "collaborationLog": null
+  },
+  {
+    "id": "92be6db0-4301-40b6-a8d1-2e03c7104f26",
+    "title": "Run to completion",
+    "type": "build",
+    "goal": "Run to completion",
+    "project_id": null,
+    "status": "completed",
+    "plan": [
+      {
+        "description": "Analyze the goal: Run to completion",
+        "status": "completed",
+        "result": "Executed step: Analyze the goal: Run to completion",
+        "logs": [
+          "Executed step: Analyze the goal: Run to completion"
+        ],
+        "error": null,
+        "metadata": null
+      },
+      {
+        "description": "Design and implement a solution for: Run to completion",
+        "status": "completed",
+        "result": "Executed step: Design and implement a solution for: Run to completion",
+        "logs": [
+          "Executed step: Design and implement a solution for: Run to completion"
+        ],
+        "error": null,
+        "metadata": null
+      },
+      {
+        "description": "Test and review the solution for: Run to completion",
+        "status": "completed",
+        "result": "Executed step: Test and review the solution for: Run to completion",
+        "logs": [
+          "Executed step: Test and review the solution for: Run to completion"
+        ],
+        "error": null,
+        "metadata": null
+      }
+    ],
+    "current_step": 3,
+    "createdAt": "2025-12-03 22:09:27.274959",
+    "updatedAt": "2025-12-03 22:09:27.274962",
+    "logs": [
+      "Task created.",
+      "Executed step: Analyze the goal: Run to completion",
+      "Executed step: Design and implement a solution for: Run to completion",
+      "Executed step: Test and review the solution for: Run to completion"
+    ],
+    "error": null,
+    "metadata": {},
+    "messages": [],
+    "collaborationLog": null
+  },
+  {
+    "id": "80237bfb-a1b6-4564-b900-a24e0d2a292e",
+    "title": "Session-based task",
+    "type": "build",
+    "goal": "Session-based task",
+    "project_id": null,
+    "status": "completed",
+    "plan": [
+      {
+        "description": "Analyze the goal: Session-based task",
+        "status": "completed",
+        "result": "Executed step: Analyze the goal: Session-based task",
+        "logs": [
+          "Executed step: Analyze the goal: Session-based task"
+        ],
+        "error": null,
+        "metadata": null
+      },
+      {
+        "description": "Design and implement a solution for: Session-based task",
+        "status": "completed",
+        "result": "Completed step: Design and implement a solution for: Session-based task",
+        "logs": [
+          "Step completed (no specific actions)"
+        ],
+        "error": null,
+        "metadata": null
+      },
+      {
+        "description": "Test and review the solution for: Session-based task",
+        "status": "completed",
+        "result": "Completed step: Test and review the solution for: Session-based task",
+        "logs": [
+          "Step completed (no specific actions)"
+        ],
+        "error": null,
+        "metadata": null
+      }
+    ],
+    "current_step": null,
+    "createdAt": "2025-12-03 22:11:32.075493",
+    "updatedAt": "2025-12-03 22:11:32.075495",
+    "logs": [
+      "[session:4eca8e29-3f41-4bad-ba75-10626e409537] Task created.",
+      "Executed step: Analyze the goal: Session-based task",
+      "[2025-12-03T22:11:31.073198Z] Completed step 2: Design and implement a solution for: Session-based task",
+      "[2025-12-03T22:11:32.075456Z] Completed step 3: Test and review the solution for: Session-based task",
+      "[2025-12-03T22:11:32.075464Z] All steps completed by ClaudeAgent."
+    ],
+    "error": null,
+    "metadata": {},
+    "messages": [],
+    "collaborationLog": null
+  },
+  {
+    "id": "3d5bd73b-9bba-4edf-a0ab-cfff64bdfcaf",
+    "title": "Test the backend API",
+    "type": "test_task",
+    "goal": "Test the backend API",
+    "project_id": null,
+    "status": "queued",
+    "plan": [],
+    "current_step": 0,
+    "createdAt": "2025-12-03 23:09:51.856966",
+    "updatedAt": "2025-12-03 23:09:51.856977",
+    "logs": [
+      "Task created."
+    ],
+    "error": null,
+    "metadata": {},
+    "messages": [],
+    "collaborationLog": null
   }
 ]
