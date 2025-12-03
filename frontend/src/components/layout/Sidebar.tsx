@@ -292,7 +292,7 @@ const ChatItem = ({ task, isSelected, onSelect }: {
           <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-500">
             <span className="capitalize">{task.type}</span>
             <span>•</span>
-            <span>{getTaskDate(task).toLocaleTimeString([], {
+            <span>{new Date(task.updatedAt ?? task.createdAt ?? Date.now()).toLocaleTimeString([], {
               hour: '2-digit',
               minute: '2-digit'
             })}</span>

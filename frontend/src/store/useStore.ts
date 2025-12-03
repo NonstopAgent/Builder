@@ -9,6 +9,8 @@ type PanelVisibility = {
 };
 
 interface UIState {
+  currentProjectId?: string;
+  setCurrentProjectId: (id?: string) => void;
   selectedTaskId?: string;
   setSelectedTaskId: (id?: string) => void;
   tabs: Tab[];
@@ -24,6 +26,8 @@ interface UIState {
 export const useUIStore = create<UIState>()(
   persist(
     (set, get) => ({
+      currentProjectId: undefined,
+      setCurrentProjectId: (id) => set({ currentProjectId: id }),
       selectedTaskId: undefined,
       setSelectedTaskId: (id) => set({ selectedTaskId: id }),
       tabs: [],
