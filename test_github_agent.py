@@ -2,7 +2,10 @@ import unittest
 import sys
 from unittest.mock import MagicMock, patch
 
+ task-engine-fixes
+
  feature/task-engine-dashboard-v2
+ main
 # Ensure we start clean
 if "backend.tools.github" in sys.modules:
     del sys.modules["backend.tools.github"]
@@ -12,10 +15,13 @@ mock_github_module = MagicMock()
 sys.modules["backend.tools.github"] = mock_github_module
 
 # Now import the agent
+ task-engine-fixes
+
 
 # Need to make sure backend.tools.github is importable or mocked before claude_agent imports it
 sys.modules["backend.tools.github"] = MagicMock()
 
+ main
  main
 from backend.agents.claude_agent import ClaudeAgent
 
@@ -25,7 +31,10 @@ class TestGitHubAgent(unittest.TestCase):
         # Mock Claude call to avoid real API
         self.agent._call_claude = MagicMock(return_value="mock_file_content")
 
+ task-engine-fixes
+
  feature/task-engine-dashboard-v2
+ main
         # Reset the mock module's GitHubTools for each test
         mock_github_module.GitHubTools.reset_mock()
 
@@ -66,6 +75,8 @@ class TestGitHubAgent(unittest.TestCase):
             "Update src/main.py"
         )
         self.assertEqual(result["result"], "File updated successfully.")
+
+ task-engine-fixes
 
     def test_github_read(self):
         # We need to mock the GitHubTools imported INSIDE the method
@@ -109,5 +120,6 @@ class TestGitHubAgent(unittest.TestCase):
             self.assertEqual(result["result"], "File updated successfully.")
  main
 
+ main
 if __name__ == "__main__":
     unittest.main()

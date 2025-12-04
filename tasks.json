@@ -96,7 +96,10 @@
     "current_step": null,
     "createdAt": "2025-12-03 22:11:30.071054",
     "updatedAt": "2025-12-03 22:11:30.071056",
+< task-engine-fixes
+
  feature/task-engine-dashboard-v2
+ main
     "logs": [
       "Task created.",
       "Executed step: Analyze the goal: Generate a simple plan",
@@ -151,6 +154,13 @@
     "current_step": 3,
     "createdAt": "2025-12-03 22:09:27.274959",
     "updatedAt": "2025-12-03 22:09:27.274962",
+< task-engine-fixes
+    "logs": [
+      "Task created.",
+      "Executed step: Analyze the goal: Run to completion",
+      "Executed step: Design and implement a solution for: Run to completion",
+      "Executed step: Test and review the solution for: Run to completion"
+
     "logs": [
       "Task created.",
       "Executed step: Analyze the goal: Run to completion",
@@ -164,6 +174,7 @@
       "[2025-12-03T22:11:30.070980Z] Completed step 3: Test and review the solution for: Generate a simple plan",
       "[2025-12-03T22:11:30.070987Z] All steps completed by ClaudeAgent."
  main
+ main
     ],
     "error": null,
     "metadata": {},
@@ -171,11 +182,15 @@
     "collaborationLog": null
   },
   {
+< task-engine-fixes
+
  feature/task-engine-dashboard-v2
+ main
     "id": "80237bfb-a1b6-4564-b900-a24e0d2a292e",
     "title": "Session-based task",
     "type": "build",
     "goal": "Session-based task",
+< task-engine-fixes
     "project_id": null,
     "status": "completed",
     "plan": [
@@ -231,11 +246,72 @@
     "type": "test_task",
     "goal": "Test the backend API",
     "project_id": null,
+
+    "project_id": null,
+    "status": "completed",
+    "plan": [
+      {
+        "description": "Analyze the goal: Session-based task",
+        "status": "completed",
+        "result": "Executed step: Analyze the goal: Session-based task",
+        "logs": [
+          "Executed step: Analyze the goal: Session-based task"
+        ],
+        "error": null,
+        "metadata": null
+      },
+      {
+        "description": "Design and implement a solution for: Session-based task",
+        "status": "completed",
+        "result": "Completed step: Design and implement a solution for: Session-based task",
+        "logs": [
+          "Step completed (no specific actions)"
+        ],
+        "error": null,
+        "metadata": null
+      },
+      {
+        "description": "Test and review the solution for: Session-based task",
+        "status": "completed",
+        "result": "Completed step: Test and review the solution for: Session-based task",
+        "logs": [
+          "Step completed (no specific actions)"
+        ],
+        "error": null,
+        "metadata": null
+      }
+    ],
+    "current_step": null,
+    "createdAt": "2025-12-03 22:11:32.075493",
+    "updatedAt": "2025-12-03 22:11:32.075495",
+    "logs": [
+      "[session:4eca8e29-3f41-4bad-ba75-10626e409537] Task created.",
+      "Executed step: Analyze the goal: Session-based task",
+      "[2025-12-03T22:11:31.073198Z] Completed step 2: Design and implement a solution for: Session-based task",
+      "[2025-12-03T22:11:32.075456Z] Completed step 3: Test and review the solution for: Session-based task",
+      "[2025-12-03T22:11:32.075464Z] All steps completed by ClaudeAgent."
+    ],
+    "error": null,
+    "metadata": {},
+    "messages": [],
+    "collaborationLog": null
+  },
+  {
+    "id": "3d5bd73b-9bba-4edf-a0ab-cfff64bdfcaf",
+    "title": "Test the backend API",
+    "type": "test_task",
+    "goal": "Test the backend API",
+    "project_id": null,
+> main
     "status": "queued",
     "plan": [],
     "current_step": 0,
     "createdAt": "2025-12-03 23:09:51.856966",
     "updatedAt": "2025-12-03 23:09:51.856977",
+< task-engine-fixes
+    "logs": [
+      "Task created."
+
     "logs": [
       "Task created."
 
@@ -339,6 +415,7 @@
       "[2025-12-03T22:11:31.073198Z] Completed step 2: Design and implement a solution for: Session-based task",
       "[2025-12-03T22:11:32.075456Z] Completed step 3: Test and review the solution for: Session-based task",
       "[2025-12-03T22:11:32.075464Z] All steps completed by ClaudeAgent."
+ main
  main
     ],
     "error": null,
