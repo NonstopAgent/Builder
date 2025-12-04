@@ -33,6 +33,15 @@ class Project(BaseModel):
     status: str = "active"  # active, archived
 
 
+class Project(BaseModel):
+    """Represents a high-level project (group of tasks)."""
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    description: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    status: str = "active"  # active, archived
+
+
 class CreateTaskRequest(BaseModel):
     """Request body for creating a new task."""
 
