@@ -152,20 +152,34 @@ class ClaudeAgent:
         from backend.utils.file_ops import list_dir, read_file, write_file
         from backend.tools.github import GitHubTools
 
-        description = step.get("description", "").lower()
+        description = step.get("description", "")
         step_logs = step.get("logs", [])
 
         # Check for GitHub-specific tasks
+ feature/task-engine-dashboard-v2
+        if "github" in description.lower():
+
         if "github" in description:
+main
             gh_tools = GitHubTools()
 
             # Simple heuristic for now - can be replaced with LLM decision
             # Update regex to support owner/repo (including slash)
+ feature/task-engine-dashboard-v2
+            repo_match = re.search(r"repo\s+([\w\-\.]+/?[\w\-\.]*)", description, re.IGNORECASE)
+            logger.info(f"GitHub task detected. Description: {description}")
+            logger.info(f"Repo match: {repo_match.group(1) if repo_match else 'None'}")
+
+            if "read" in description.lower():
+                # Expecting description like "Read file x from repo y"
+                file_match = re.search(r"file\s+([\w\-\./]+)", description, re.IGNORECASE)
+
             repo_match = re.search(r"repo\s+([\w\-\.]+/?[\w\-\.]*)", description)
 
             if "read" in description:
                 # Expecting description like "Read file x from repo y"
                 file_match = re.search(r"file\s+([\w\-\./]+)", description)
+ main
                 if repo_match and file_match:
                     content = gh_tools.read_file(repo_match.group(1), file_match.group(1))
                     step["result"] = f"GitHub Read Result: {content[:100]}..."
@@ -173,9 +187,15 @@ class ClaudeAgent:
                 else:
                     step["result"] = "Could not parse repo or file from description"
 
+ feature/task-engine-dashboard-v2
+            elif "commit" in description.lower() or "update" in description.lower():
+                 # Expecting description like "Update file x in repo y with message z"
+                 file_match = re.search(r"file\s+([\w\-\./]+)", description, re.IGNORECASE)
+
             elif "commit" in description or "update" in description:
                  # Expecting description like "Update file x in repo y with message z"
                  file_match = re.search(r"file\s+([\w\-\./]+)", description)
+ main
                  if repo_match and file_match:
                      # For content, we'd typically ask the LLM to generate it, but here we assume
                      # the agent has already generated content or we need to ask for it.
@@ -195,13 +215,21 @@ class ClaudeAgent:
                  else:
                      step["result"] = "Could not parse repo or file for commit"
 
+ feature/task-engine-dashboard-v2
+            elif "create pr" in description.lower() or "pull request" in description.lower():
+
             elif "create pr" in description or "pull request" in description:
+ main
                  # This needs more params, would be better served by a structured tool call
                  step["result"] = "PR creation requires more structured input"
             # Add more specific handlers as needed
 
         # Fallback to local file ops (existing logic)
+ feature/task-engine-dashboard-v2
+        elif "create" in description.lower() and "file" in description.lower():
+
         elif "create" in description and "file" in description:
+ main
             system_prompt = (
                 "You are a code generation assistant. Generate clean, well-documented code "
                 "based on the step description and overall goal."
@@ -234,7 +262,7 @@ class ClaudeAgent:
                 step["result"] = "Could not generate file content (Claude unavailable)"
                 step_logs.append("Warning: File generation skipped")
 
-        elif "read" in description and "file" in description:
+        elif "read" in description.lower() and "file" in description.lower():
             filename = self._extract_filename(step["description"])
             if filename:
                 try:
@@ -249,7 +277,7 @@ class ClaudeAgent:
                 step["result"] = "Could not determine which file to read"
                 step_logs.append("Warning: Filename not found in description")
 
-        elif "list" in description or "explore" in description:
+        elif "list" in description.lower() or "explore" in description.lower():
             try:
                 entries = list_dir("")
                 step["result"] = f"Found {len(entries)} items in workspace"
