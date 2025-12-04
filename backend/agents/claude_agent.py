@@ -156,11 +156,23 @@ class ClaudeAgent:
         step_logs = step.get("logs", [])
 
         # Check for GitHub-specific tasks
+ task-engine-fixes
         if "github" in description.lower():
+
+ feature/task-engine-dashboard-v2
+        if "github" in description.lower():
+
+        if "github" in description:
+main
+ main
             gh_tools = GitHubTools()
 
             # Simple heuristic for now - can be replaced with LLM decision
             # Update regex to support owner/repo (including slash)
+ task-engine-fixes
+
+ feature/task-engine-dashboard-v2
+ main
             repo_match = re.search(r"repo\s+([\w\-\.]+/?[\w\-\.]*)", description, re.IGNORECASE)
             logger.info(f"GitHub task detected. Description: {description}")
             logger.info(f"Repo match: {repo_match.group(1) if repo_match else 'None'}")
@@ -168,6 +180,16 @@ class ClaudeAgent:
             if "read" in description.lower():
                 # Expecting description like "Read file x from repo y"
                 file_match = re.search(r"file\s+([\w\-\./]+)", description, re.IGNORECASE)
+ task-engine-fixes
+
+
+            repo_match = re.search(r"repo\s+([\w\-\.]+/?[\w\-\.]*)", description)
+
+            if "read" in description:
+                # Expecting description like "Read file x from repo y"
+                file_match = re.search(r"file\s+([\w\-\./]+)", description)
+ main
+ main
                 if repo_match and file_match:
                     content = gh_tools.read_file(repo_match.group(1), file_match.group(1))
                     step["result"] = f"GitHub Read Result: {content[:100]}..."
@@ -175,6 +197,7 @@ class ClaudeAgent:
                 else:
                     step["result"] = "Could not parse repo or file from description"
 
+ task-engine-fixes
             elif "commit" in description.lower() or "update" in description.lower():
                 # Expecting description like "Update file x in repo y with message z"
                 file_match = re.search(r"file\s+([\w\-\./]+)", description, re.IGNORECASE)
@@ -204,6 +227,51 @@ class ClaudeAgent:
 
         # Fallback to local file ops (existing logic)
         elif "create" in description.lower() and "file" in description.lower():
+
+ feature/task-engine-dashboard-v2
+            elif "commit" in description.lower() or "update" in description.lower():
+                 # Expecting description like "Update file x in repo y with message z"
+                 file_match = re.search(r"file\s+([\w\-\./]+)", description, re.IGNORECASE)
+
+            elif "commit" in description or "update" in description:
+                 # Expecting description like "Update file x in repo y with message z"
+                 file_match = re.search(r"file\s+([\w\-\./]+)", description)
+ main
+                 if repo_match and file_match:
+                     # For content, we'd typically ask the LLM to generate it, but here we assume
+                     # the agent has already generated content or we need to ask for it.
+                     # For this simple "tool use" step, let's ask Claude to generate the content to be written.
+
+                     system_prompt = "You are a coding assistant. Generate the file content to be committed."
+                     user_prompt = f"Goal: {task_goal}\nStep: {description}\n\nProvide only the file content."
+                     content = self._call_claude(system_prompt, user_prompt)
+
+                     if content:
+                         msg = f"Update {file_match.group(1)}" # Simple commit message
+                         res = gh_tools.update_file(repo_match.group(1), file_match.group(1), content, msg)
+                         step["result"] = res
+                         step_logs.append(res)
+                     else:
+                         step["result"] = "Failed to generate content for commit"
+                 else:
+                     step["result"] = "Could not parse repo or file for commit"
+
+ feature/task-engine-dashboard-v2
+            elif "create pr" in description.lower() or "pull request" in description.lower():
+
+            elif "create pr" in description or "pull request" in description:
+ main
+                 # This needs more params, would be better served by a structured tool call
+                 step["result"] = "PR creation requires more structured input"
+            # Add more specific handlers as needed
+
+        # Fallback to local file ops (existing logic)
+ feature/task-engine-dashboard-v2
+        elif "create" in description.lower() and "file" in description.lower():
+
+        elif "create" in description and "file" in description:
+ main
+ main
             system_prompt = (
                 "You are a code generation assistant. Generate clean, well-documented code "
                 "based on the step description and overall goal."
