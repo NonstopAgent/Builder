@@ -20,6 +20,7 @@ from backend.models import (
     MessageResponse,
     RequirementsSession,
     Task,
+    Project,
 )
 from backend.orchestrator import (
     AgentOrchestrationResponse,
@@ -29,7 +30,7 @@ from backend.orchestrator import (
 from backend.agents.requirements_agent import RequirementsAgent
 from backend.agents.council import DevelopmentCouncil
 from backend.agents.execution_engine import ExecutionEngine
-from backend.storage import load_tasks, save_tasks, upsert_task
+from backend.storage import load_tasks, save_tasks, upsert_task, load_projects, save_projects, upsert_project
 from backend.agents.super_builder import get_agent as get_super_builder_agent
 from backend.agents.claude_agent import get_agent as get_claude_agent
 from backend.utils.file_ops import WORKSPACE_DIR, list_dir, read_file
@@ -450,6 +451,53 @@ async def create_task_with_council(request: Dict[str, Any]):
     save_tasks(tasks)
 
     return task
+
+
+# --------------------------------------------------------------------------- #
+# Projects
+# --------------------------------------------------------------------------- #
+
+@app.get("/projects", response_model=List[Project])
+async def list_projects() -> List[Project]:
+    """
+    List all projects.
+    """
+    return load_projects()
+
+class CreateProjectRequest(BaseModel):
+    name: str
+    description: Optional[str] = None
+
+@app.post("/projects", response_model=Project)
+async def create_project(request: CreateProjectRequest) -> Project:
+    """
+    Create a new project.
+    """
+    project = Project(
+        name=request.name,
+        description=request.description
+    )
+    upsert_project(project)
+    return project
+
+@app.get("/projects/{project_id}", response_model=Project)
+async def get_project(project_id: str) -> Project:
+    """
+    Get a specific project by ID.
+    """
+    projects = load_projects()
+    for p in projects:
+        if p.id == project_id:
+            return p
+    raise HTTPException(status_code=404, detail="Project not found")
+
+@app.get("/projects/{project_id}/tasks", response_model=List[Task])
+async def get_project_tasks(project_id: str) -> List[Task]:
+    """
+    Get all tasks for a specific project.
+    """
+    tasks = load_tasks()
+    return [t for t in tasks if t.project_id == project_id]
 
 
 # --------------------------------------------------------------------------- #
