@@ -1,0 +1,16 @@
+[
+  {
+    "id": "2e770f86-1fd6-49c9-b3c6-a71812a97c54",
+    "name": "Test Project 123",
+    "description": null,
+    "created_at": "2025-12-03 22:35:27.846797",
+    "status": "active"
+  },
+  {
+    "id": "906187af-a201-4b63-a11b-1923b91aac83",
+    "name": "Test Project 123",
+    "description": null,
+    "created_at": "2025-12-03 22:36:03.745178",
+    "status": "active"
+  }
+]
