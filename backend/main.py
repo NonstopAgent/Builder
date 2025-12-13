@@ -29,7 +29,6 @@ from backend.orchestrator import (
 )
 from backend.agents.requirements_agent import RequirementsAgent
 from backend.agents.council import DevelopmentCouncil
-from backend.agents.execution_engine import ExecutionEngine
 from backend.storage import load_tasks, save_tasks, upsert_task, load_projects, save_projects, upsert_project
 from backend.agents.super_builder import get_agent as get_super_builder_agent
 from backend.agents.claude_agent import get_agent as get_claude_agent
