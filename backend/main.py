@@ -38,6 +38,8 @@ from backend.storage import (
     upsert_project,
     load_memory,
     save_memory,
+    load_sessions,
+    save_sessions,
 )
 from backend.agents.super_builder import get_agent as get_super_builder_agent
 from backend.agents.claude_agent import get_agent as get_claude_agent
@@ -89,6 +91,7 @@ app.add_middleware(
 )
 
 # In-memory store for simple chat per session
+# Now initialized from disk
 SESSIONS_STORE: Dict[str, List[Dict[str, str]]] = {}
 REQUIREMENTS_SESSIONS: Dict[str, RequirementsSession] = {}
 COUNCIL_DEBATES: Dict[str, CouncilDebateResult] = {}
@@ -99,8 +102,16 @@ try:
     _loaded_memory = load_memory()
     for item in _loaded_memory:
         MEMORY_STORE[item.id] = item
+    print(f"Loaded {len(MEMORY_STORE)} memory items from disk.")
 except Exception as e:
     print(f"Failed to load memory: {e}")
+
+# Load sessions from disk
+try:
+    SESSIONS_STORE = load_sessions()
+    print(f"Loaded {len(SESSIONS_STORE)} sessions from disk.")
+except Exception as e:
+    print(f"Failed to load sessions: {e}")
 
 
 # --------------------------------------------------------------------------- #
@@ -921,6 +932,8 @@ def send_message(session_id: str, request: MessageRequest) -> MessageResponse:
     _ensure_session(session_id)
     response_text = f"Echo: {request.message}"
     SESSIONS_STORE[session_id].append({"user": request.message, "assistant": response_text})
+    # Persist sessions
+    save_sessions(SESSIONS_STORE)
     return MessageResponse(session_id=session_id, message=request.message, response=response_text)
 
 

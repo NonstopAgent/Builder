@@ -71,6 +71,7 @@ def upsert_project(project: Project) -> None:
     save_projects(projects)
 
 MEMORY_FILE = Path(__file__).resolve().parent.parent / "memory.json"
+SESSIONS_FILE = Path(__file__).resolve().parent.parent / "sessions.json"
 
 def load_memory() -> List[MemoryItem]:
     """Load memory items from memory.json."""
@@ -88,3 +89,18 @@ def save_memory(items: List[MemoryItem]) -> None:
     serialized = [item.dict() for item in items]
     with MEMORY_FILE.open("w", encoding="utf-8") as f:
         json.dump(serialized, f, indent=2, default=str)
+
+def load_sessions() -> dict:
+    """Load sessions from sessions.json."""
+    if not SESSIONS_FILE.exists():
+        return {}
+    try:
+        with SESSIONS_FILE.open("r", encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, FileNotFoundError):
+        return {}
+
+def save_sessions(sessions: dict) -> None:
+    """Persist sessions to sessions.json."""
+    with SESSIONS_FILE.open("w", encoding="utf-8") as f:
+        json.dump(sessions, f, indent=2, default=str)
