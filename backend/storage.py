@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 from typing import List
-from .models import Task, Project
+from .models import Task, Project, MemoryItem
 
 # Path to tasks.json relative to repository root
 TASKS_FILE = Path(__file__).resolve().parent.parent / "tasks.json"
@@ -69,3 +69,22 @@ def upsert_project(project: Project) -> None:
         projects.append(project)
 
     save_projects(projects)
+
+MEMORY_FILE = Path(__file__).resolve().parent.parent / "memory.json"
+
+def load_memory() -> List[MemoryItem]:
+    """Load memory items from memory.json."""
+    if not MEMORY_FILE.exists():
+        return []
+    try:
+        with MEMORY_FILE.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+        return [MemoryItem(**item) for item in data]
+    except (json.JSONDecodeError, FileNotFoundError):
+        return []
+
+def save_memory(items: List[MemoryItem]) -> None:
+    """Persist memory items to memory.json."""
+    serialized = [item.dict() for item in items]
+    with MEMORY_FILE.open("w", encoding="utf-8") as f:
+        json.dump(serialized, f, indent=2, default=str)

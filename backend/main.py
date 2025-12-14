@@ -29,7 +29,16 @@ from backend.orchestrator import (
 )
 from backend.agents.requirements_agent import RequirementsAgent
 from backend.agents.council import DevelopmentCouncil
-from backend.storage import load_tasks, save_tasks, upsert_task, load_projects, save_projects, upsert_project
+from backend.storage import (
+    load_tasks,
+    save_tasks,
+    upsert_task,
+    load_projects,
+    save_projects,
+    upsert_project,
+    load_memory,
+    save_memory,
+)
 from backend.agents.super_builder import get_agent as get_super_builder_agent
 from backend.agents.claude_agent import get_agent as get_claude_agent
 from backend.utils.file_ops import WORKSPACE_DIR, list_dir, read_file
@@ -83,7 +92,15 @@ app.add_middleware(
 SESSIONS_STORE: Dict[str, List[Dict[str, str]]] = {}
 REQUIREMENTS_SESSIONS: Dict[str, RequirementsSession] = {}
 COUNCIL_DEBATES: Dict[str, CouncilDebateResult] = {}
+
+# Load memory from disk on startup
 MEMORY_STORE: dict[str, MemoryItem] = {}
+try:
+    _loaded_memory = load_memory()
+    for item in _loaded_memory:
+        MEMORY_STORE[item.id] = item
+except Exception as e:
+    print(f"Failed to load memory: {e}")
 
 
 # --------------------------------------------------------------------------- #
@@ -125,6 +142,7 @@ def add_memory_item(
         last_used_at=None,
     )
     MEMORY_STORE[mem.id] = mem
+    save_memory(list(MEMORY_STORE.values()))
     return mem
 
 
@@ -587,27 +605,37 @@ async def agent_chat(request: AgentChatRequest) -> AgentOrchestrationResponse:
 
     messages_for_llm.extend(request.messages)
 
+    # ✅ Save the incoming messages immediately so we don't lose user input if LLM fails
+    if request.task_id is not None:
+        tasks = load_tasks()
+        for task in tasks:
+            if str(task.id) == str(request.task_id):
+                task.messages = [
+                    Message(**m.model_dump()) for m in request.messages
+                ]
+                task.updated_at = datetime.utcnow()
+                upsert_task(task)
+                break
+
     try:
         response = await orchestrate(messages_for_llm)
     except httpx.HTTPStatusError as exc:
         raise HTTPException(status_code=exc.response.status_code, detail=exc.response.text)
 
-    # ✅ Persist conversation as task memory if we know which task this is for
+    # ✅ Persist the assistant reply
     if request.task_id is not None:
         tasks = load_tasks()
         for task in tasks:
             if str(task.id) == str(request.task_id):
-                # Store the entire conversation plus the latest assistant reply
-                task.messages = [
-                    Message(**m.model_dump()) for m in request.messages
-                ] + [
+                # We append the new assistant message to the existing ones
+                task.messages.append(
                     Message(
                         id=str(uuid.uuid4()),
                         role="assistant",
                         content=response.reply,
                         created_at=datetime.utcnow(),
                     )
-                ]
+                )
 
                 # 🔥 Persist the rich collaboration / plan log if present
                 if getattr(response, "log", None):
@@ -989,4 +1017,3 @@ def write_file_content(payload: Dict[str, str]) -> Dict[str, str]:
         return {"path": path, "content": content}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-
