@@ -76,7 +76,13 @@ export const ChatPanel = ({
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    // Send on Enter (without shift) or Cmd/Ctrl+Enter
     if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      void handleSubmit(e as unknown as FormEvent);
+    }
+    // Also support Cmd+Enter / Ctrl+Enter explicitly
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       void handleSubmit(e as unknown as FormEvent);
     }

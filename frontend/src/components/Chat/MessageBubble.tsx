@@ -2,12 +2,15 @@ import { useState, useCallback, memo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { motion } from "framer-motion";
-import { User, Bot, Copy, Check, Clock } from "lucide-react";
+import { User, Bot, Copy, Check, Clock, RefreshCw, Pencil, Trash2 } from "lucide-react";
 import { ChatMessage } from "../../types";
 import clsx from "clsx";
 
 interface MessageBubbleProps {
   message: ChatMessage;
+  onRegenerate?: (messageId: string) => void;
+  onEdit?: (messageId: string, newContent: string) => void;
+  onDelete?: (messageId: string) => void;
 }
 
 // Format timestamp to human-readable format
@@ -101,8 +104,88 @@ const InlineCode = memo(({ children }: { children: React.ReactNode }) => (
 
 InlineCode.displayName = "InlineCode";
 
+// Message Actions component
+const MessageActions = memo(({
+  messageId,
+  content,
+  isUser,
+  onCopy,
+  onRegenerate,
+  onEdit,
+  onDelete,
+}: {
+  messageId: string;
+  content: string;
+  isUser: boolean;
+  onCopy: () => void;
+  onRegenerate?: (messageId: string) => void;
+  onEdit?: (messageId: string, newContent: string) => void;
+  onDelete?: (messageId: string) => void;
+}) => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy:", err);
+    }
+  }, [content]);
+
+  return (
+    <div className="flex items-center gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+      <button
+        onClick={handleCopy}
+        className="p-1 rounded hover:bg-slate-700/50 text-slate-500 hover:text-slate-300 transition-colors"
+        title="Copy message"
+      >
+        {copied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
+      </button>
+
+      {!isUser && onRegenerate && (
+        <button
+          onClick={() => onRegenerate(messageId)}
+          className="p-1 rounded hover:bg-slate-700/50 text-slate-500 hover:text-slate-300 transition-colors"
+          title="Regenerate response"
+        >
+          <RefreshCw size={12} />
+        </button>
+      )}
+
+      {isUser && onEdit && (
+        <button
+          onClick={() => {
+            const newContent = prompt("Edit message:", content);
+            if (newContent && newContent !== content) {
+              onEdit(messageId, newContent);
+            }
+          }}
+          className="p-1 rounded hover:bg-slate-700/50 text-slate-500 hover:text-slate-300 transition-colors"
+          title="Edit message"
+        >
+          <Pencil size={12} />
+        </button>
+      )}
+
+      {onDelete && (
+        <button
+          onClick={() => onDelete(messageId)}
+          className="p-1 rounded hover:bg-slate-700/50 text-slate-500 hover:text-red-400 transition-colors"
+          title="Delete message"
+        >
+          <Trash2 size={12} />
+        </button>
+      )}
+    </div>
+  );
+});
+
+MessageActions.displayName = "MessageActions";
+
 // Main MessageBubble component
-export const MessageBubble = memo(({ message }: MessageBubbleProps) => {
+export const MessageBubble = memo(({ message, onRegenerate, onEdit, onDelete }: MessageBubbleProps) => {
   const isUser = message.role === "user";
   const isAssistant = message.role === "assistant";
 
@@ -122,7 +205,7 @@ export const MessageBubble = memo(({ message }: MessageBubbleProps) => {
       initial="hidden"
       animate="visible"
       className={clsx(
-        "flex gap-3",
+        "flex gap-3 group",
         isUser ? "flex-row-reverse" : "flex-row"
       )}
     >
@@ -293,6 +376,17 @@ export const MessageBubble = memo(({ message }: MessageBubbleProps) => {
             </p>
           )}
         </div>
+
+        {/* Message Actions */}
+        <MessageActions
+          messageId={message.id}
+          content={message.content}
+          isUser={isUser}
+          onCopy={() => {}}
+          onRegenerate={onRegenerate}
+          onEdit={onEdit}
+          onDelete={onDelete}
+        />
       </div>
     </motion.div>
   );
