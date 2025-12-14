@@ -7,11 +7,13 @@ import { Sidebar } from "./components/layout/Sidebar";
 import { ChatPanel } from "./components/layout/ChatPanel";
 import { ToolPanel } from "./components/layout/ToolPanel";
 import { ProjectDashboard } from "./components/ProjectDashboard";
+import { useToast } from "./components/Toast";
 import { PanelRightClose, PanelRightOpen, FolderKanban } from "lucide-react";
 import "./index.css";
 
 const App = () => {
   const { tabs, currentProjectId } = useUIStore();
+  const toast = useToast();
   const [viewMode, setViewMode] = useState<"chat" | "projects">("chat");
   const [tasks, setTasks] = useState<Task[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -183,6 +185,12 @@ const App = () => {
     } catch (error) {
       // Fallback: never leave the user hanging
       const fallbackTaskId = targetTaskId ?? selectedTaskId ?? `local-${Date.now()}`;
+
+      // Show error toast
+      toast.error(
+        "Message failed to send",
+        error instanceof Error ? error.message : "Check the backend logs or refresh and try again."
+      );
 
       const assistantMessage: ChatMessage = {
         id: crypto.randomUUID(),

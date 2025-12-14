@@ -6,9 +6,12 @@ import {
   useEffect,
   KeyboardEvent,
 } from "react";
-import { Sparkles, Send } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Sparkles, Send, Loader2, Terminal, ChevronDown } from "lucide-react";
 import MessageBubble from "../Chat/MessageBubble";
+import TypingIndicator from "../Chat/TypingIndicator";
 import { ChatMessage, Task } from "../../types";
+import clsx from "clsx";
 
 interface ChatPanelProps {
   messages: ChatMessage[];
@@ -185,26 +188,41 @@ export const ChatPanel = ({
           </div>
         ) : (
           <div className="max-w-3xl mx-auto space-y-6">
-            {orderedMessages.map((message) => (
-              <MessageBubble key={message.id} message={message} />
-            ))}
+            <AnimatePresence mode="popLayout">
+              {orderedMessages.map((message) => (
+                <MessageBubble key={message.id} message={message} />
+              ))}
+            </AnimatePresence>
 
+            {/* Typing indicator while waiting for response */}
+            <TypingIndicator isVisible={isSending} />
+
+            {/* Task Activity Logs */}
             {logs.length > 0 && (
-              <div className="space-y-2">
-                <div className="text-xs font-medium text-slate-400 uppercase tracking-wider">
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-2"
+              >
+                <div className="flex items-center gap-2 text-xs font-medium text-slate-400 uppercase tracking-wider">
+                  <Terminal size={12} />
                   Task Activity
                 </div>
-                <div className="rounded-xl bg-slate-900/50 border border-slate-800 p-4 space-y-2 font-mono text-xs">
+                <div className="rounded-xl bg-slate-900/50 border border-slate-800 p-4 space-y-2 font-mono text-xs max-h-48 overflow-y-auto">
                   {logs.map((log, idx) => (
-                    <div
+                    <motion.div
                       key={`${log}-${idx}`}
-                      className="text-slate-300 leading-relaxed"
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: idx * 0.05 }}
+                      className="text-slate-300 leading-relaxed flex items-start gap-2"
                     >
-                      {log}
-                    </div>
+                      <span className="text-sky-400/60 select-none">&gt;</span>
+                      <span>{log}</span>
+                    </motion.div>
                   ))}
                 </div>
-              </div>
+              </motion.div>
             )}
           </div>
         )}
@@ -227,9 +245,19 @@ export const ChatPanel = ({
             <button
               type="submit"
               disabled={!draft.trim() || isSending}
-              className="absolute right-2.5 bottom-2.5 p-2 rounded-lg bg-sky-500 text-white hover:bg-sky-400 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className={clsx(
+                "absolute right-2.5 bottom-2.5 p-2 rounded-lg text-white transition-all",
+                isSending
+                  ? "bg-sky-600/50 cursor-wait"
+                  : "bg-sky-500 hover:bg-sky-400 hover:shadow-lg hover:shadow-sky-500/25",
+                "disabled:opacity-40 disabled:cursor-not-allowed"
+              )}
             >
-              <Send size={16} />
+              {isSending ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <Send size={16} />
+              )}
             </button>
           </div>
           <div className="flex items-center justify-between mt-2 px-2 text-xs text-slate-500">
