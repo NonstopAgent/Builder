@@ -9,7 +9,6 @@ import { ToolPanel } from "./components/layout/ToolPanel";
 import { ProjectDashboard } from "./components/ProjectDashboard";
 import { useToast } from "./components/Toast";
 import { PanelRightClose, PanelRightOpen, FolderKanban } from "lucide-react";
-import { ConfigCheck } from "./components/ConfigCheck";
 import "./index.css";
 
 const App = () => {
@@ -259,7 +258,6 @@ const App = () => {
   );
 
   return (
-    <ConfigCheck>
     <div className="relative h-screen w-screen bg-slate-950 text-slate-100 flex flex-col overflow-hidden">
         {/* Top Navigation Bar */}
         <div className="h-12 border-b border-gray-800 bg-gray-950 flex items-center px-4 justify-between shrink-0">
@@ -328,7 +326,6 @@ const App = () => {
           </div>
       )}
     </div>
-    </ConfigCheck>
   );
 };
 

@@ -51,7 +51,7 @@ const toastStyles = {
 };
 
 // Individual Toast component
-const Toast = memo(({
+export const Toast = memo(({
   toast,
   onDismiss,
 }: {
