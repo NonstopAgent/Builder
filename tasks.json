@@ -233,5 +233,24 @@
     "metadata": {},
     "messages": [],
     "collaborationLog": null
+  },
+  {
+    "id": "83d87b83-aeac-47f1-b5f2-5ff9ebf40359",
+    "title": "Test Chat Persistence",
+    "type": "build",
+    "goal": "Test Chat Persistence",
+    "project_id": null,
+    "status": "queued",
+    "plan": [],
+    "current_step": 0,
+    "createdAt": "2025-12-14 02:22:17.509694",
+    "updatedAt": "2025-12-14 02:22:17.509700",
+    "logs": [
+      "Task created."
+    ],
+    "error": null,
+    "metadata": {},
+    "messages": [],
+    "collaborationLog": null
   }
 ]
