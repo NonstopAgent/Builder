@@ -3,7 +3,65 @@
   "buildCommand": "cd frontend && npm install && npm run build",
   "outputDirectory": "frontend/dist",
   "framework": null,
+  "functions": {
+    "api/index.py": {
+      "runtime": "@vercel/python@4.1.0",
+      "maxDuration": 60
+    }
+  },
   "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/index.py"
+    },
+    {
+      "src": "/ws/(.*)",
+      "dest": "/api/index.py"
+    },
+    {
+      "src": "/health",
+      "dest": "/api/index.py"
+    },
+    {
+      "src": "/tasks(.*)",
+      "dest": "/api/index.py"
+    },
+    {
+      "src": "/projects(.*)",
+      "dest": "/api/index.py"
+    },
+    {
+      "src": "/session(.*)",
+      "dest": "/api/index.py"
+    },
+    {
+      "src": "/agent(.*)",
+      "dest": "/api/index.py"
+    },
+    {
+      "src": "/memory(.*)",
+      "dest": "/api/index.py"
+    },
+    {
+      "src": "/requirements(.*)",
+      "dest": "/api/index.py"
+    },
+    {
+      "src": "/council(.*)",
+      "dest": "/api/index.py"
+    },
+    {
+      "src": "/execution(.*)",
+      "dest": "/api/index.py"
+    },
+    {
+      "src": "/workspace(.*)",
+      "dest": "/api/index.py"
+    },
+    {
+      "src": "/files(.*)",
+      "dest": "/api/index.py"
+    },
     {
       "src": "/assets/(.*)",
       "dest": "/assets/$1"
