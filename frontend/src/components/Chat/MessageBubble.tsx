@@ -1,13 +1,26 @@
-import { useState, useCallback, memo } from "react";
+import { useState, useCallback, memo, useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { motion } from "framer-motion";
-import { User, Bot, Copy, Check, Clock } from "lucide-react";
+import { User, Bot, Copy, Check, Clock, RefreshCw } from "lucide-react";
 import { ChatMessage } from "../../types";
 import clsx from "clsx";
+import Prism from "prismjs";
+import "prismjs/themes/prism-tomorrow.css";
+import "prismjs/components/prism-javascript";
+import "prismjs/components/prism-typescript";
+import "prismjs/components/prism-python";
+import "prismjs/components/prism-jsx";
+import "prismjs/components/prism-tsx";
+import "prismjs/components/prism-bash";
+import "prismjs/components/prism-json";
+import "prismjs/components/prism-css";
+import "prismjs/components/prism-markdown";
 
 interface MessageBubbleProps {
   message: ChatMessage;
+  onRegenerate?: () => void;
+  onCopyMessage?: (content: string) => void;
 }
 
 // Format timestamp to human-readable format
@@ -53,17 +66,27 @@ const CopyButton = memo(({ code }: { code: string }) => {
   return (
     <button
       onClick={handleCopy}
-      className="absolute top-2 right-2 p-1.5 rounded-md bg-slate-700/80 hover:bg-slate-600 text-slate-300 hover:text-white transition-all opacity-0 group-hover:opacity-100"
+      className="flex items-center gap-1 px-2 py-0.5 rounded text-xs text-slate-400 hover:text-white hover:bg-slate-700 transition-all"
       title={copied ? "Copied!" : "Copy code"}
     >
-      {copied ? <Check size={14} className="text-green-400" /> : <Copy size={14} />}
+      {copied ? (
+        <>
+          <Check size={12} className="text-green-400" />
+          <span className="text-green-400">Copied!</span>
+        </>
+      ) : (
+        <>
+          <Copy size={12} />
+          <span>Copy</span>
+        </>
+      )}
     </button>
   );
 });
 
 CopyButton.displayName = "CopyButton";
 
-// Code block component with syntax highlighting
+// Code block component with Prism syntax highlighting
 const CodeBlock = memo(({
   className,
   children,
@@ -71,19 +94,39 @@ const CodeBlock = memo(({
   className?: string;
   children: React.ReactNode;
 }) => {
+  const codeRef = useRef<HTMLElement>(null);
   const match = /language-(\w+)/.exec(className || "");
   const language = match ? match[1] : "plaintext";
   const code = String(children).replace(/\n$/, "");
 
+  // Map common language aliases
+  const languageMap: Record<string, string> = {
+    js: "javascript",
+    ts: "typescript",
+    py: "python",
+    sh: "bash",
+    shell: "bash",
+    yml: "yaml",
+  };
+  const prismLanguage = languageMap[language] || language;
+
+  useEffect(() => {
+    if (codeRef.current) {
+      Prism.highlightElement(codeRef.current);
+    }
+  }, [code, prismLanguage]);
+
   return (
     <div className="relative group my-3">
-      <div className="absolute top-0 left-0 px-2 py-1 text-[10px] font-mono text-slate-400 bg-slate-800/80 rounded-br-md">
-        {language}
+      <div className="flex items-center justify-between bg-slate-800/90 px-3 py-1.5 rounded-t-lg border-b border-slate-700/50">
+        <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wide">
+          {language}
+        </span>
+        <CopyButton code={code} />
       </div>
-      <CopyButton code={code} />
-      <pre className="overflow-x-auto rounded-lg bg-slate-900 border border-slate-700/50 p-4 pt-7 text-sm font-mono">
-        <code className={clsx("text-slate-200", className)}>
-          {children}
+      <pre className="!mt-0 !rounded-t-none overflow-x-auto rounded-b-lg bg-slate-900 border border-t-0 border-slate-700/50 p-4 text-sm font-mono">
+        <code ref={codeRef} className={`language-${prismLanguage}`}>
+          {code}
         </code>
       </pre>
     </div>
@@ -101,8 +144,61 @@ const InlineCode = memo(({ children }: { children: React.ReactNode }) => (
 
 InlineCode.displayName = "InlineCode";
 
+// Message actions component
+const MessageActions = memo(({
+  content,
+  isAssistant,
+  onRegenerate,
+}: {
+  content: string;
+  isAssistant: boolean;
+  onRegenerate?: () => void;
+}) => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy:", err);
+    }
+  }, [content]);
+
+  return (
+    <div className="flex items-center gap-2 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+      <button
+        onClick={handleCopy}
+        className="flex items-center gap-1 px-2 py-0.5 rounded text-xs text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-all"
+        title="Copy message"
+      >
+        {copied ? (
+          <Check size={12} className="text-green-400" />
+        ) : (
+          <Copy size={12} />
+        )}
+        <span>{copied ? "Copied" : "Copy"}</span>
+      </button>
+
+      {isAssistant && onRegenerate && (
+        <button
+          onClick={onRegenerate}
+          className="flex items-center gap-1 px-2 py-0.5 rounded text-xs text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-all"
+          title="Regenerate response"
+        >
+          <RefreshCw size={12} />
+          <span>Regenerate</span>
+        </button>
+      )}
+    </div>
+  );
+});
+
+MessageActions.displayName = "MessageActions";
+
 // Main MessageBubble component
-export const MessageBubble = memo(({ message }: MessageBubbleProps) => {
+export const MessageBubble = memo(({ message, onRegenerate }: MessageBubbleProps) => {
   const isUser = message.role === "user";
   const isAssistant = message.role === "assistant";
 
@@ -122,7 +218,7 @@ export const MessageBubble = memo(({ message }: MessageBubbleProps) => {
       initial="hidden"
       animate="visible"
       className={clsx(
-        "flex gap-3",
+        "flex gap-3 group",
         isUser ? "flex-row-reverse" : "flex-row"
       )}
     >
@@ -293,6 +389,13 @@ export const MessageBubble = memo(({ message }: MessageBubbleProps) => {
             </p>
           )}
         </div>
+
+        {/* Message actions */}
+        <MessageActions
+          content={message.content}
+          isAssistant={isAssistant}
+          onRegenerate={onRegenerate}
+        />
       </div>
     </motion.div>
   );

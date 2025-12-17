@@ -3,9 +3,10 @@ import uuid
 from datetime import datetime
 from typing import Any, Dict, Iterable, List, Optional
 
-from fastapi import Body, FastAPI, HTTPException, Query
+from fastapi import Body, FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
+import asyncio
 from pydantic import BaseModel
 
 from backend.models import (
@@ -101,6 +102,69 @@ try:
         MEMORY_STORE[item.id] = item
 except Exception as e:
     print(f"Failed to load memory: {e}")
+
+
+# --------------------------------------------------------------------------- #
+# WebSocket Connection Manager for Real-Time Updates
+# --------------------------------------------------------------------------- #
+
+
+class ConnectionManager:
+    """Manages WebSocket connections for real-time task updates."""
+
+    def __init__(self):
+        self.active_connections: Dict[str, set] = {}  # task_id -> set of WebSocket connections
+
+    async def connect(self, websocket: WebSocket, task_id: str):
+        await websocket.accept()
+        if task_id not in self.active_connections:
+            self.active_connections[task_id] = set()
+        self.active_connections[task_id].add(websocket)
+
+    def disconnect(self, websocket: WebSocket, task_id: str):
+        if task_id in self.active_connections:
+            self.active_connections[task_id].discard(websocket)
+            if not self.active_connections[task_id]:
+                del self.active_connections[task_id]
+
+    async def broadcast(self, task_id: str, message: dict):
+        """Broadcast a message to all connections watching a specific task."""
+        if task_id in self.active_connections:
+            disconnected = set()
+            for connection in self.active_connections[task_id]:
+                try:
+                    await connection.send_json(message)
+                except Exception:
+                    disconnected.add(connection)
+            # Clean up disconnected clients
+            for conn in disconnected:
+                self.disconnect(conn, task_id)
+
+    async def broadcast_all(self, message: dict):
+        """Broadcast a message to all connected clients."""
+        for task_id in list(self.active_connections.keys()):
+            await self.broadcast(task_id, message)
+
+
+ws_manager = ConnectionManager()
+
+
+@app.websocket("/ws/tasks/{task_id}")
+async def websocket_task_updates(websocket: WebSocket, task_id: str):
+    """
+    WebSocket endpoint for real-time task updates.
+    Clients can connect to receive live updates about task progress.
+    """
+    await ws_manager.connect(websocket, task_id)
+    try:
+        while True:
+            # Send a ping every 30 seconds to keep connection alive
+            await asyncio.sleep(30)
+            await websocket.send_json({"type": "ping", "task_id": task_id})
+    except WebSocketDisconnect:
+        ws_manager.disconnect(websocket, task_id)
+    except Exception:
+        ws_manager.disconnect(websocket, task_id)
 
 
 # --------------------------------------------------------------------------- #
